@@ -216,6 +216,7 @@ int ath6kl_control_tx(void *devt, struct sk_buff *skb,
 	cookie->map_no = 0;
 	set_htc_pkt_info(&cookie->htc_pkt, cookie, skb->data, skb->len,
 			 eid, ATH6KL_CONTROL_PKT_TAG);
+	cookie->htc_pkt.netbufcontext = skb;
 
 	/*
 	 * This interface is asynchronous, if there is an error, cleanup
@@ -324,6 +325,7 @@ int ath6kl_data_tx(struct sk_buff *skb, struct net_device *dev)
 	cookie->map_no = map_no;
 	set_htc_pkt_info(&cookie->htc_pkt, cookie, skb->data, skb->len,
 			 eid, htc_tag);
+	cookie->htc_pkt.netbufcontext = skb;
 
 	ath6kl_dbg_dump(ATH6KL_DBG_RAW_BYTES, __func__, skb->data, skb->len);
 
@@ -496,9 +498,10 @@ static void ath6kl_tx_clear_node_map(struct ath6kl *ar,
 	}
 }
 
-void ath6kl_tx_complete(void *context, struct list_head *packet_queue)
+void ath6kl_tx_complete(struct htc_target *target,
+				struct list_head *packet_queue)
 {
-	struct ath6kl *ar = context;
+	struct ath6kl *ar = target->dev->ar;
 	struct sk_buff_head skb_queue;
 	struct htc_packet *packet;
 	struct sk_buff *skb;
@@ -689,10 +692,11 @@ void ath6kl_rx_refill(struct htc_target *target, enum htc_endpoint_id endpoint)
 			break;
 
 		packet = (struct htc_packet *) skb->head;
-		if (!IS_ALIGNED((unsigned long) skb->data, 4))
-			skb->data = PTR_ALIGN(skb->data - 4, 4);
+		skb->data = PTR_ALIGN(skb->data - 4, 4);
 		set_htc_rxpkt_info(packet, skb, skb->data,
 				ATH6KL_BUFFER_SIZE, endpoint);
+		packet->netbufcontext = skb;
+
 		list_add_tail(&packet->list, &queue);
 	}
 
@@ -711,10 +715,11 @@ void ath6kl_refill_amsdu_rxbufs(struct ath6kl *ar, int count)
 			return;
 
 		packet = (struct htc_packet *) skb->head;
-		if (!IS_ALIGNED((unsigned long) skb->data, 4))
-			skb->data = PTR_ALIGN(skb->data - 4, 4);
+		skb->data = PTR_ALIGN(skb->data - 4, 4);
 		set_htc_rxpkt_info(packet, skb, skb->data,
 				   ATH6KL_AMSDU_BUFFER_SIZE, 0);
+		packet->netbufcontext = skb;
+
 		spin_lock_bh(&ar->lock);
 		list_add_tail(&packet->list, &ar->amsdu_rx_buffer_queue);
 		spin_unlock_bh(&ar->lock);
@@ -1019,6 +1024,7 @@ void ath6kl_rx(struct htc_target *target, struct htc_packet *packet)
 	struct wmi_data_hdr *dhdr;
 	int min_hdr_len;
 	u8 meta_type, dot11_hdr = 0;
+	u8 pad_before_data_start;
 	int status = packet->status;
 	enum htc_endpoint_id ept = packet->endpoint;
 	bool is_amsdu, prev_ps, ps_state = false;
@@ -1166,6 +1172,10 @@ void ath6kl_rx(struct htc_target *target, struct htc_packet *packet)
 	seq_no = wmi_data_hdr_get_seqno(dhdr);
 	meta_type = wmi_data_hdr_get_meta(dhdr);
 	dot11_hdr = wmi_data_hdr_get_dot11(dhdr);
+	pad_before_data_start =
+		(dhdr->info3 >> WMI_DATA_HDR_PAD_BEFORE_DATA_SHIFT)
+			& WMI_DATA_HDR_PAD_BEFORE_DATA_MASK;
+
 	skb_pull(skb, sizeof(struct wmi_data_hdr));
 
 	switch (meta_type) {
@@ -1183,6 +1193,8 @@ void ath6kl_rx(struct htc_target *target, struct htc_packet *packet)
 	default:
 		break;
 	}
+
+	skb_pull(skb, pad_before_data_start);
 
 	if (dot11_hdr)
 		status = ath6kl_wmi_dot11_hdr_remove(ar->wmi, skb);

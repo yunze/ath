@@ -20,16 +20,29 @@
 #
 # Author(s): ="Atheros"
 #------------------------------------------------------------------------------
+ath6kl_sdio-y += \
+		debug.o \
+		htc_hif.o \
+		htc.o \
+		bmi.o \
+		cfg80211.o \
+		init.o \
+		main.o \
+		txrx.o \
+		wmi.o \
+		node.o \
+		sdio.o
+obj-$(CONFIG_ATH6KL_SDIO) += ath6kl_sdio.o
 
-obj-$(CONFIG_ATH6KL) := ath6kl.o
-ath6kl-y += debug.o
-ath6kl-y += htc_hif.o
-ath6kl-y += htc.o
-ath6kl-y += bmi.o
-ath6kl-y += cfg80211.o
-ath6kl-y += init.o
-ath6kl-y += main.o
-ath6kl-y += txrx.o
-ath6kl-y += wmi.o
-ath6kl-y += node.o
-ath6kl-y += sdio.o
+ath6kl_usb-y += \
+		debug.o \
+		bmi.o \
+		cfg80211.o \
+		init.o \
+		main.o \
+		txrx.o \
+		wmi.o \
+		node.o \
+		hif_usb.o \
+		htc_pipe.o
+obj-$(CONFIG_ATH6KL_USB) += ath6kl_usb.o

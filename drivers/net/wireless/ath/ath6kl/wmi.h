@@ -181,6 +181,9 @@ enum wmi_data_hdr_data_type {
 #define WMI_DATA_HDR_META_MASK      0x7
 #define WMI_DATA_HDR_META_SHIFT     13
 
+#define WMI_DATA_HDR_PAD_BEFORE_DATA_MASK               0xFF
+#define WMI_DATA_HDR_PAD_BEFORE_DATA_SHIFT              0x8
+
 struct wmi_data_hdr {
 	s8 rssi;
 
@@ -575,6 +578,7 @@ enum wmi_connect_ctrl_flags_bits {
 	CONNECT_CSA_FOLLOW_BSS = 0x0020,
 	CONNECT_DO_WPA_OFFLOAD = 0x0040,
 	CONNECT_DO_NOT_DEAUTH = 0x0080,
+	CONNECT_WPS_FLAG = 0x0100,
 };
 
 struct wmi_connect_cmd {

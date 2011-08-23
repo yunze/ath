@@ -36,6 +36,9 @@ enum ATH6K_DEBUG_MASK {
 	ATH6KL_DBG_WLAN_CFG     = BIT(13),    /* cfg80211 i/f file tracing */
 	ATH6KL_DBG_RAW_BYTES    = BIT(14),    /* dump tx/rx and wmi frames */
 	ATH6KL_DBG_AGGR		= BIT(15),    /* aggregation */
+	ATH6KL_DBG_USB      = BIT(16),    /* USB hif tracing */
+	ATH6KL_DBG_USB_BULK    = BIT(17),    /* USB hif bulk*/
+	ATH6KL_DBG_HTC_PIPE     = BIT(18),    /* USB htc tracing */
 	ATH6KL_DBG_ANY	        = 0xffffffff  /* enable all logs */
 };
 

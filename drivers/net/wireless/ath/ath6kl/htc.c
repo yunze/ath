@@ -22,17 +22,6 @@
 
 #define CALC_TXRX_PADDED_LEN(dev, len)  (__ALIGN_MASK((len), (dev)->block_mask))
 
-static void ath6kl_htc_buf_align(u8 **buf, unsigned long len)
-{
-	u8 *align_addr;
-
-	if (!IS_ALIGNED((unsigned long) *buf, 4)) {
-		align_addr = PTR_ALIGN(*buf - 4, 4);
-		memmove(align_addr, *buf, len);
-		*buf = align_addr;
-	}
-}
-
 static void htc_prep_send_pkt(struct htc_packet *packet, u8 flags, int ctrl0,
 			      int ctrl1)
 {
@@ -122,7 +111,7 @@ static void htc_tx_complete(struct htc_endpoint *endpoint,
 		   "send complete ep %d, (%d pkts)\n",
 		   endpoint->eid, get_queue_depth(txq));
 
-	ath6kl_tx_complete(endpoint->target->dev->ar, txq);
+	ath6kl_tx_complete(endpoint->target, txq);
 }
 
 static void htc_tx_comp_handler(struct htc_target *target,
@@ -402,9 +391,6 @@ static int htc_setup_send_scat_list(struct htc_target *target,
 		htc_prep_send_pkt(packet,
 				packet->info.tx.flags | HTC_FLAGS_SEND_BUNDLE,
 				cred_pad, packet->info.tx.seqno);
-		/* Make sure the buffer is 4-byte aligned */
-		ath6kl_htc_buf_align(&packet->buf,
-				     packet->act_len + HTC_HDR_LENGTH);
 		scat_req->scat_list[i].buf = packet->buf;
 		scat_req->scat_list[i].len = len;
 

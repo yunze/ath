@@ -372,6 +372,11 @@ struct ath6kl_req_key {
 #define SKIP_SCAN	     11
 #define WLAN_ENABLED	     12
 
+enum hif_type {
+	HIF_TYPE_SDIO,
+	HIF_TYPE_USB
+};
+
 struct ath6kl {
 	struct device *dev;
 	struct net_device *net_dev;
@@ -381,6 +386,7 @@ struct ath6kl {
 	int tx_pending[ENDPOINT_MAX];
 	int total_tx_data_pend;
 	struct htc_target *htc_target;
+	enum hif_type hif_type;
 	void *hif_priv;
 	spinlock_t lock;
 	struct semaphore sem;
@@ -492,14 +498,14 @@ void init_netdev(struct net_device *dev);
 void ath6kl_cookie_init(struct ath6kl *ar);
 void ath6kl_cookie_cleanup(struct ath6kl *ar);
 void ath6kl_rx(struct htc_target *target, struct htc_packet *packet);
-void ath6kl_tx_complete(void *context, struct list_head *packet_queue);
+void ath6kl_tx_complete(struct htc_target *context,
+						struct list_head *packet_queue);
 enum htc_send_full_action ath6kl_tx_queue_full(struct htc_target *target,
 					       struct htc_packet *packet);
 void ath6kl_stop_txrx(struct ath6kl *ar);
 void ath6kl_cleanup_amsdu_rxbufs(struct ath6kl *ar);
 int ath6kl_access_datadiag(struct ath6kl *ar, u32 address,
 			   u8 *data, u32 length, bool read);
-int ath6kl_read_reg_diag(struct ath6kl *ar, u32 *address, u32 *data);
 void ath6kl_init_profile_info(struct ath6kl *ar);
 void ath6kl_tx_data_cleanup(struct ath6kl *ar);
 void ath6kl_stop_endpoint(struct net_device *dev, bool keep_profile,

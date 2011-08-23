@@ -128,6 +128,17 @@ static int ath6kl_sdio_func0_cmd52_wr_byte(struct mmc_card *card,
 	return mmc_wait_for_cmd(card->host, &io_cmd, 0);
 }
 
+static void ath6kl_sdio_buf_align(u8 **buf, unsigned long len)
+{
+	u8 *align_addr;
+
+	if (!IS_ALIGNED((unsigned long) *buf, 4)) {
+		align_addr = PTR_ALIGN(*buf - 4, 4);
+		memmove(align_addr, *buf, len);
+		*buf = align_addr;
+	}
+}
+
 static int ath6kl_sdio_io(struct sdio_func *func, u32 request, u32 addr,
 			  u8 *buf, u32 len)
 {
@@ -213,6 +224,10 @@ static void ath6kl_sdio_setup_scat_data(struct hif_scatter_req *scat_req,
 
 	/* assemble SG list */
 	for (i = 0; i < scat_req->scat_entries; i++, sg++) {
+		/* No header is added to rx buf, so it shoule be aligned */
+		if (data->flags == MMC_DATA_WRITE)
+			ath6kl_sdio_buf_align(&scat_req->scat_list[i].buf,
+					      scat_req->scat_list[i].len);
 		ath6kl_dbg(ATH6KL_DBG_SCATTER, "%d: addr:0x%p, len:%d\n",
 			   i, scat_req->scat_list[i].buf,
 			   scat_req->scat_list[i].len);
@@ -736,6 +751,266 @@ static int ath6kl_sdio_suspend(struct ath6kl *ar)
 	return 0;
 }
 
+/* set the window address register (using 4-byte register access ). */
+static int ath6kl_set_addrwin_reg(struct ath6kl *ar, u32 reg_addr, u32 addr)
+{
+	int status;
+	u8 addr_val[4];
+	s32 i;
+
+	/*
+	 * Write bytes 1,2,3 of the register to set the upper address bytes,
+	 * the LSB is written last to initiate the access cycle
+	 */
+
+	for (i = 1; i <= 3; i++) {
+		/*
+		 * Fill the buffer with the address byte value we want to
+		 * hit 4 times.
+		 */
+		memset(addr_val, ((u8 *)&addr)[i], 4);
+
+		/*
+		 * Hit each byte of the register address with a 4-byte
+		 * write operation to the same address, this is a harmless
+		 * operation.
+		 */
+		status = ath6kl_sdio_read_write_sync(ar, reg_addr + i, addr_val,
+					     4, HIF_WR_SYNC_BYTE_FIX);
+		if (status)
+			break;
+	}
+
+	if (status) {
+		ath6kl_err("%s: failed to write initial bytes of 0x%x "
+			   "to window reg: 0x%X\n", __func__,
+			   addr, reg_addr);
+		return status;
+	}
+
+	/*
+	 * Write the address register again, this time write the whole
+	 * 4-byte value. The effect here is that the LSB write causes the
+	 * cycle to start, the extra 3 byte write to bytes 1,2,3 has no
+	 * effect since we are writing the same values again
+	 */
+	status = ath6kl_sdio_read_write_sync(ar, reg_addr, (u8 *)(&addr),
+				     4, HIF_WR_SYNC_BYTE_INC);
+
+	if (status) {
+		ath6kl_err("%s: failed to write 0x%x to window reg: 0x%X\n",
+			   __func__, addr, reg_addr);
+		return status;
+	}
+
+	return 0;
+}
+
+static int ath6kl_sdio_read_reg_diag(struct ath6kl *ar, u32 address,
+			u32 *data)
+{
+	int status;
+
+	/* set window register to start read cycle */
+	status = ath6kl_set_addrwin_reg(ar, WINDOW_READ_ADDR_ADDRESS,
+					address);
+
+	if (status)
+		return status;
+
+	/* read the data */
+	status = ath6kl_sdio_read_write_sync(ar, WINDOW_DATA_ADDRESS,
+				(u8 *)data, sizeof(u32), HIF_RD_SYNC_BYTE_INC);
+	if (status) {
+		ath6kl_err("%s: failed to read from window data addr\n",
+			__func__);
+		return status;
+	}
+
+	return status;
+}
+
+static int ath6kl_sdio_write_reg_diag(struct ath6kl *ar, u32 address,
+			u32 *data)
+{
+	int status;
+
+	/* set write data */
+	status = ath6kl_sdio_read_write_sync(ar, WINDOW_DATA_ADDRESS,
+				(u8 *)data, sizeof(u32), HIF_WR_SYNC_BYTE_INC);
+	if (status) {
+		ath6kl_err("%s: failed to write 0x%x to window data addr\n",
+			   __func__, *data);
+		return status;
+	}
+
+	/* set window register, which starts the write cycle */
+	return ath6kl_set_addrwin_reg(ar, WINDOW_WRITE_ADDR_ADDRESS,
+				      address);
+}
+
+static int ath6kl_get_bmi_cmd_credits(struct ath6kl *ar)
+{
+	u32 addr;
+	unsigned long timeout;
+	int ret;
+
+	ar->bmi.cmd_credits = 0;
+
+	/* Read the counter register to get the command credits */
+	addr = COUNT_DEC_ADDRESS + (HTC_MAILBOX_NUM_MAX + ENDPOINT1) * 4;
+
+	timeout = jiffies + msecs_to_jiffies(BMI_COMMUNICATION_TIMEOUT);
+	while (time_before(jiffies, timeout) && !ar->bmi.cmd_credits) {
+
+		/*
+		 * Hit the credit counter with a 4-byte access, the first byte
+		 * read will hit the counter and cause a decrement, while the
+		 * remaining 3 bytes has no effect. The rationale behind this
+		 * is to make all HIF accesses 4-byte aligned.
+		 */
+		ret = ath6kl_sdio_read_write_sync(ar, addr,
+					 (u8 *)&ar->bmi.cmd_credits, 4,
+					 HIF_RD_SYNC_BYTE_INC);
+		if (ret) {
+			ath6kl_err("Unable to decrement the command credit "
+						"count register: %d\n", ret);
+			return ret;
+		}
+
+		/* The counter is only 8 bits.
+		 * Ignore anything in the upper 3 bytes
+		 */
+		ar->bmi.cmd_credits &= 0xFF;
+	}
+
+	if (!ar->bmi.cmd_credits) {
+		ath6kl_err("bmi communication timeout\n");
+		return -ETIMEDOUT;
+	}
+
+	return 0;
+}
+
+static int ath6kl_bmi_get_rx_lkahd(struct ath6kl *ar, bool need_timeout)
+{
+	unsigned long timeout;
+	u32 rx_word = 0;
+	int ret = 0;
+
+	timeout = jiffies + msecs_to_jiffies(BMI_COMMUNICATION_TIMEOUT);
+	while ((!need_timeout || time_before(jiffies, timeout)) && !rx_word) {
+		ret = ath6kl_sdio_read_write_sync(ar,
+					RX_LOOKAHEAD_VALID_ADDRESS,
+					(u8 *)&rx_word, sizeof(rx_word),
+					HIF_RD_SYNC_BYTE_INC);
+		if (ret) {
+			ath6kl_err("unable to read RX_LOOKAHEAD_VALID\n");
+			return ret;
+		}
+
+		 /* all we really want is one bit */
+		rx_word &= (1 << ENDPOINT1);
+	}
+
+	if (!rx_word) {
+		ath6kl_err("bmi_recv_buf FIFO empty\n");
+		return -EINVAL;
+	}
+
+	return ret;
+}
+
+static int ath6kl_sdio_bmi_send_buf(struct ath6kl *ar,
+			u8 *buf, u32 len)
+{
+	int ret;
+	u32 addr;
+
+	ret = ath6kl_get_bmi_cmd_credits(ar);
+	if (ret)
+		return ret;
+
+	addr = ar->mbox_info.htc_addr;
+
+	ret = ath6kl_sdio_read_write_sync(ar, addr, buf, len,
+				  HIF_WR_SYNC_BYTE_INC);
+	if (ret)
+		ath6kl_err("unable to send the bmi data to the device\n");
+
+	return ret;
+}
+
+static int ath6kl_sdio_bmi_recv_buf(struct ath6kl *ar,
+			u8 *buf, u32 len, bool want_timeout)
+{
+	int ret;
+	u32 addr;
+
+	/*
+	 * During normal bootup, small reads may be required.
+	 * Rather than issue an HIF Read and then wait as the Target
+	 * adds successive bytes to the FIFO, we wait here until
+	 * we know that response data is available.
+	 *
+	 * This allows us to cleanly timeout on an unexpected
+	 * Target failure rather than risk problems at the HIF level.
+	 * In particular, this avoids SDIO timeouts and possibly garbage
+	 * data on some host controllers.  And on an interconnect
+	 * such as Compact Flash (as well as some SDIO masters) which
+	 * does not provide any indication on data timeout, it avoids
+	 * a potential hang or garbage response.
+	 *
+	 * Synchronization is more difficult for reads larger than the
+	 * size of the MBOX FIFO (128B), because the Target is unable
+	 * to push the 129th byte of data until AFTER the Host posts an
+	 * HIF Read and removes some FIFO data.  So for large reads the
+	 * Host proceeds to post an HIF Read BEFORE all the data is
+	 * actually available to read.  Fortunately, large BMI reads do
+	 * not occur in practice -- they're supported for debug/development.
+	 *
+	 * So Host/Target BMI synchronization is divided into these cases:
+	 *  CASE 1: length < 4
+	 *        Should not happen
+	 *
+	 *  CASE 2: 4 <= length <= 128
+	 *        Wait for first 4 bytes to be in FIFO
+	 *        If CONSERVATIVE_BMI_READ is enabled, also wait for
+	 *        a BMI command credit, which indicates that the ENTIRE
+	 *        response is available in the the FIFO
+	 *
+	 *  CASE 3: length > 128
+	 *        Wait for the first 4 bytes to be in FIFO
+	 *
+	 * For most uses, a small timeout should be sufficient and we will
+	 * usually see a response quickly; but there may be some unusual
+	 * (debug) cases of BMI_EXECUTE where we want an larger timeout.
+	 * For now, we use an unbounded busy loop while waiting for
+	 * BMI_EXECUTE.
+	 *
+	 * If BMI_EXECUTE ever needs to support longer-latency execution,
+	 * especially in production, this code needs to be enhanced to sleep
+	 * and yield.  Also note that BMI_COMMUNICATION_TIMEOUT is currently
+	 * a function of Host processor speed.
+	 */
+	if (len >= 4) { /* NB: Currently, always true */
+		ret = ath6kl_bmi_get_rx_lkahd(ar, want_timeout);
+		if (ret)
+			return ret;
+	}
+
+	addr = ar->mbox_info.htc_addr;
+	ret = ath6kl_sdio_read_write_sync(ar, addr, buf, len,
+				  HIF_RD_SYNC_BYTE_INC);
+	if (ret) {
+		ath6kl_err("Unable to read the bmi data from the device: %d\n",
+			   ret);
+		return ret;
+	}
+
+	return 0;
+}
+
 static const struct ath6kl_hif_ops ath6kl_sdio_ops = {
 	.read_write_sync = ath6kl_sdio_read_write_sync,
 	.write_async = ath6kl_sdio_write_async,
@@ -747,6 +1022,10 @@ static const struct ath6kl_hif_ops ath6kl_sdio_ops = {
 	.scat_req_rw = ath6kl_sdio_async_rw_scatter,
 	.cleanup_scatter = ath6kl_sdio_cleanup_scatter,
 	.suspend = ath6kl_sdio_suspend,
+	.read_reg_diag = ath6kl_sdio_read_reg_diag,
+	.write_reg_diag = ath6kl_sdio_write_reg_diag,
+	.bmi_recv_buf = ath6kl_sdio_bmi_recv_buf,
+	.bmi_send_buf = ath6kl_sdio_bmi_send_buf,
 };
 
 static int ath6kl_sdio_probe(struct sdio_func *func,
@@ -800,6 +1079,7 @@ static int ath6kl_sdio_probe(struct sdio_func *func,
 
 	ar_sdio->ar = ar;
 	ar->hif_priv = ar_sdio;
+	ar->hif_type = HIF_TYPE_SDIO;
 	ar->hif_ops = &ath6kl_sdio_ops;
 
 	ath6kl_sdio_set_mbox_info(ar);

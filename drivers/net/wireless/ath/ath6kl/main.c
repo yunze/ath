@@ -173,108 +173,6 @@ void ath6kl_free_cookie(struct ath6kl *ar, struct ath6kl_cookie *cookie)
 	ar->cookie_count++;
 }
 
-/* set the window address register (using 4-byte register access ). */
-static int ath6kl_set_addrwin_reg(struct ath6kl *ar, u32 reg_addr, u32 addr)
-{
-	int status;
-	u8 addr_val[4];
-	s32 i;
-
-	/*
-	 * Write bytes 1,2,3 of the register to set the upper address bytes,
-	 * the LSB is written last to initiate the access cycle
-	 */
-
-	for (i = 1; i <= 3; i++) {
-		/*
-		 * Fill the buffer with the address byte value we want to
-		 * hit 4 times.
-		 */
-		memset(addr_val, ((u8 *)&addr)[i], 4);
-
-		/*
-		 * Hit each byte of the register address with a 4-byte
-		 * write operation to the same address, this is a harmless
-		 * operation.
-		 */
-		status = hif_read_write_sync(ar, reg_addr + i, addr_val,
-					     4, HIF_WR_SYNC_BYTE_FIX);
-		if (status)
-			break;
-	}
-
-	if (status) {
-		ath6kl_err("failed to write initial bytes of 0x%x to window reg: 0x%X\n",
-			   addr, reg_addr);
-		return status;
-	}
-
-	/*
-	 * Write the address register again, this time write the whole
-	 * 4-byte value. The effect here is that the LSB write causes the
-	 * cycle to start, the extra 3 byte write to bytes 1,2,3 has no
-	 * effect since we are writing the same values again
-	 */
-	status = hif_read_write_sync(ar, reg_addr, (u8 *)(&addr),
-				     4, HIF_WR_SYNC_BYTE_INC);
-
-	if (status) {
-		ath6kl_err("failed to write 0x%x to window reg: 0x%X\n",
-			   addr, reg_addr);
-		return status;
-	}
-
-	return 0;
-}
-
-/*
- * Read from the ATH6KL through its diagnostic window. No cooperation from
- * the Target is required for this.
- */
-int ath6kl_read_reg_diag(struct ath6kl *ar, u32 *address, u32 *data)
-{
-	int status;
-
-	/* set window register to start read cycle */
-	status = ath6kl_set_addrwin_reg(ar, WINDOW_READ_ADDR_ADDRESS,
-					*address);
-
-	if (status)
-		return status;
-
-	/* read the data */
-	status = hif_read_write_sync(ar, WINDOW_DATA_ADDRESS, (u8 *)data,
-				     sizeof(u32), HIF_RD_SYNC_BYTE_INC);
-	if (status) {
-		ath6kl_err("failed to read from window data addr\n");
-		return status;
-	}
-
-	return status;
-}
-
-
-/*
- * Write to the ATH6KL through its diagnostic window. No cooperation from
- * the Target is required for this.
- */
-static int ath6kl_write_reg_diag(struct ath6kl *ar, u32 *address, u32 *data)
-{
-	int status;
-
-	/* set write data */
-	status = hif_read_write_sync(ar, WINDOW_DATA_ADDRESS, (u8 *)data,
-				     sizeof(u32), HIF_WR_SYNC_BYTE_INC);
-	if (status) {
-		ath6kl_err("failed to write 0x%x to window data addr\n", *data);
-		return status;
-	}
-
-	/* set window register, which starts the write cycle */
-	return ath6kl_set_addrwin_reg(ar, WINDOW_WRITE_ADDR_ADDRESS,
-				      *address);
-}
-
 int ath6kl_access_datadiag(struct ath6kl *ar, u32 address,
 			   u8 *data, u32 length, bool read)
 {
@@ -283,12 +181,12 @@ int ath6kl_access_datadiag(struct ath6kl *ar, u32 address,
 
 	for (count = 0; count < length; count += 4, address += 4) {
 		if (read) {
-			status = ath6kl_read_reg_diag(ar, &address,
+			status = ath6kl_hif_read_diag(ar, address,
 						      (u32 *) &data[count]);
 			if (status)
 				break;
 		} else {
-			status = ath6kl_write_reg_diag(ar, &address,
+			status = ath6kl_hif_write_diag(ar, address,
 						       (u32 *) &data[count]);
 			if (status)
 				break;
@@ -297,10 +195,6 @@ int ath6kl_access_datadiag(struct ath6kl *ar, u32 address,
 
 	return status;
 }
-
-/* FIXME: move to a better place, target.h? */
-#define AR6003_RESET_CONTROL_ADDRESS 0x00004000
-#define AR6004_RESET_CONTROL_ADDRESS 0x00004000
 
 static void ath6kl_reset_device(struct ath6kl *ar, u32 target_type,
 				bool wait_fot_compltn, bool cold_reset)
@@ -315,19 +209,8 @@ static void ath6kl_reset_device(struct ath6kl *ar, u32 target_type,
 
 	data = cold_reset ? RESET_CONTROL_COLD_RST : RESET_CONTROL_MBOX_RST;
 
-	switch (target_type) {
-	case TARGET_TYPE_AR6003:
-		address = AR6003_RESET_CONTROL_ADDRESS;
-		break;
-	case TARGET_TYPE_AR6004:
-		address = AR6004_RESET_CONTROL_ADDRESS;
-		break;
-	default:
-		address = AR6003_RESET_CONTROL_ADDRESS;
-		break;
-	}
-
-	status = ath6kl_write_reg_diag(ar, &address, &data);
+	address = RTC_BASE_ADDRESS;
+	status = ath6kl_hif_write_diag(ar, address, &data);
 
 	if (status)
 		ath6kl_err("failed to reset target\n");

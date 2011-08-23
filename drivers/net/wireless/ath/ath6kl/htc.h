@@ -55,6 +55,8 @@
 #define HTC_CONN_FLGS_THRESH_LVL_THREE_QUAT	0x2
 #define HTC_CONN_FLGS_REDUCE_CRED_DRIB		0x4
 #define HTC_CONN_FLGS_THRESH_MASK		0x3
+/* disable credit flow control on a specific service */
+#define HTC_CONN_FLGS_DISABLE_CRED_FLOW_CTRL          (1 << 3)
 
 /* connect response status codes */
 #define HTC_SERVICE_SUCCESS      0
@@ -308,6 +310,14 @@ struct htc_packet {
 
 	void (*completion) (struct htc_target *, struct htc_packet *);
 	struct htc_target *context;
+
+	/*
+	 * optimization for network-oriented data, the HTC packet
+	 * can pass the network buffer corresponding to the HTC packet
+	 * lower layers may optimized the transfer knowing this is
+	 * a network buffer
+	 */
+	struct sk_buff *netbufcontext;
 };
 
 enum htc_send_full_action {
@@ -316,12 +326,14 @@ enum htc_send_full_action {
 };
 
 struct htc_ep_callbacks {
+	void (*tx_complete) (struct htc_target *, struct htc_packet *);
 	void (*rx) (struct htc_target *, struct htc_packet *);
 	void (*rx_refill) (struct htc_target *, enum htc_endpoint_id endpoint);
 	enum htc_send_full_action (*tx_full) (struct htc_target *,
 					      struct htc_packet *);
 	struct htc_packet *(*rx_allocthresh) (struct htc_target *,
 					      enum htc_endpoint_id, int);
+	void (*tx_comp_multi) (struct htc_target *, struct list_head *);
 	int rx_alloc_thresh;
 	int rx_refill_thresh;
 };

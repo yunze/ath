@@ -131,7 +131,7 @@ static int ath6kl_set_host_app_area(struct ath6kl *ar)
 	address = ath6kl_get_hi_item_addr(ar, HI_ITEM(hi_app_host_interest));
 	address = TARG_VTOP(ar->target_type, address);
 
-	if (ath6kl_read_reg_diag(ar, &address, &data))
+	if (ath6kl_hif_read_diag(ar, address, &data))
 		return -EIO;
 
 	address = TARG_VTOP(ar->target_type, data);
@@ -202,6 +202,7 @@ static int ath6kl_init_service_ep(struct ath6kl *ar)
 	memset(&connect, 0, sizeof(connect));
 
 	/* these fields are the same for all service endpoints */
+	connect.ep_cb.tx_comp_multi = ath6kl_tx_complete;
 	connect.ep_cb.rx = ath6kl_rx;
 	connect.ep_cb.rx_refill = ath6kl_rx_refill;
 	connect.ep_cb.tx_full = ath6kl_tx_queue_full;
@@ -375,7 +376,7 @@ static void ath6kl_dump_target_assert_info(struct ath6kl *ar)
 	address = TARG_VTOP(ar->target_type, address);
 
 	/* read RAM location through diagnostic window */
-	status = ath6kl_read_reg_diag(ar, &address, &regdump_loc);
+	status = ath6kl_hif_read_diag(ar, address, &regdump_loc);
 
 	if (status || !regdump_loc) {
 		ath6kl_err("failed to get ptr to register dump area\n");
@@ -519,14 +520,10 @@ int ath6kl_configure_target(struct ath6kl *ar)
 	 * but possible in theory.
 	 */
 
-	if (ar->target_type == TARGET_TYPE_AR6003 ||
-	    ar->target_type == TARGET_TYPE_AR6004) {
+	if (ar->target_type == TARGET_TYPE_AR6003) {
 		if (ar->version.target_ver == AR6003_REV2_VERSION) {
 			param = AR6003_REV2_BOARD_EXT_DATA_ADDRESS;
 			ram_reserved_size =  AR6003_REV2_RAM_RESERVE_SIZE;
-		} else if (ar->version.target_ver == AR6004_REV1_VERSION) {
-			param = AR6004_REV1_BOARD_EXT_DATA_ADDRESS;
-			ram_reserved_size =  AR6004_REV1_RAM_RESERVE_SIZE;
 		} else {
 			param = AR6003_REV3_BOARD_EXT_DATA_ADDRESS;
 			ram_reserved_size =  AR6003_REV3_RAM_RESERVE_SIZE;
@@ -758,11 +755,6 @@ static int ath6kl_upload_board_file(struct ath6kl *ar)
 	ath6kl_dbg(ATH6KL_DBG_TRC, "board file download addr: 0x%x\n",
 		   board_ext_address);
 
-	if (board_ext_address == 0) {
-		ath6kl_err("Failed to get board file target address.\n");
-		return -EINVAL;
-	}
-
 	switch (ar->target_type) {
 	case TARGET_TYPE_AR6003:
 		board_data_size = AR6003_BOARD_DATA_SZ;
@@ -778,8 +770,8 @@ static int ath6kl_upload_board_file(struct ath6kl *ar)
 		break;
 	}
 
-	if (ar->fw_board_len == (board_data_size +
-				 board_ext_data_size)) {
+	if ((board_ext_address) &&
+	    (ar->fw_board_len == (board_data_size + board_ext_data_size))) {
 
 		/* write extended board data */
 		ret = ath6kl_bmi_write(ar, board_ext_address,
