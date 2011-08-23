@@ -203,7 +203,6 @@ struct ath6kl_hif_ops {
 			    struct hif_scatter_req *scat_req);
 	void (*cleanup_scatter)(struct ath6kl *ar);
 	int (*suspend)(struct ath6kl *ar);
-
 	int (*read_reg_diag)(struct ath6kl *ar, u32 address,
 			u32 *data);
 	int (*write_reg_diag)(struct ath6kl *ar, u32 address,
