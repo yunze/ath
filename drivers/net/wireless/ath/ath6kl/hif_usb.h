@@ -94,7 +94,7 @@ enum HIF_USB_PIPE_ID {
 
 struct hif_usb_pipe {
 	struct list_head urb_list_head;
-	struct list_head urb_pending_list;
+	struct usb_anchor urb_submitted;
 	u32 urb_alloc;
 	u32 urb_cnt;
 	u32 urb_cnt_thresh;
@@ -131,7 +131,6 @@ struct hif_urb_context {
 	struct list_head link;
 	struct hif_usb_pipe *pipe;
 	struct sk_buff *buf;
-	struct urb *urb;
 };
 
 /* USB endpoint definitions */

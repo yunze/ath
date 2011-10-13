@@ -66,44 +66,6 @@ static void hif_usb_cleanup_recv_urb(struct hif_urb_context *urb_context)
 	hif_usb_free_urb_to_pipe(urb_context->pipe, urb_context);
 }
 
-static void hif_usb_enqueue_pending_transfer(struct hif_usb_pipe *pipe,
-					struct hif_urb_context *urb_context)
-{
-	unsigned long flags;
-
-	spin_lock_irqsave(&pipe->ar_usb->cs_lock, flags);
-	list_add_tail(&urb_context->link, &pipe->urb_pending_list);
-	spin_unlock_irqrestore(&pipe->ar_usb->cs_lock, flags);
-}
-
-static struct hif_urb_context *hif_usb_dequeue_pending_transfer(struct
-								hif_usb_pipe
-								*pipe)
-{
-	struct hif_urb_context *urb_context = NULL;
-	unsigned long flags;
-
-	spin_lock_irqsave(&pipe->ar_usb->cs_lock, flags);
-	if (!list_empty(&pipe->urb_pending_list)) {
-		urb_context =
-		    list_first_entry(&pipe->urb_pending_list,
-				     struct hif_urb_context, link);
-		list_del(&urb_context->link);
-	}
-	spin_unlock_irqrestore(&pipe->ar_usb->cs_lock, flags);
-
-	return urb_context;
-}
-
-static void hif_usb_remove_pending_transfer(struct hif_urb_context *urb_context)
-{
-	unsigned long flags;
-
-	spin_lock_irqsave(&urb_context->pipe->ar_usb->cs_lock, flags);
-	list_del(&urb_context->link);
-	spin_unlock_irqrestore(&urb_context->pipe->ar_usb->cs_lock, flags);
-}
-
 static inline struct ath6kl_usb *ath6kl_usb_priv(struct ath6kl *ar)
 {
 	return ar->hif_priv;
@@ -117,7 +79,7 @@ static int hif_usb_alloc_pipe_resources(struct hif_usb_pipe *pipe, int urb_cnt)
 	struct hif_urb_context *urb_context;
 
 	INIT_LIST_HEAD(&pipe->urb_list_head);
-	INIT_LIST_HEAD(&pipe->urb_pending_list);
+	init_usb_anchor(&pipe->urb_submitted);
 
 	for (i = 0; i < urb_cnt; i++) {
 		urb_context = (struct hif_urb_context *)
@@ -127,10 +89,6 @@ static int hif_usb_alloc_pipe_resources(struct hif_usb_pipe *pipe, int urb_cnt)
 
 		memset(urb_context, 0, sizeof(struct hif_urb_context));
 		urb_context->pipe = pipe;
-
-		urb_context->urb = usb_alloc_urb(0, GFP_KERNEL);
-		if (urb_context->urb == NULL)
-			break;
 
 		/*
 		 * we are only allocate the urb contexts here, the actual URB
@@ -175,9 +133,6 @@ static void hif_usb_free_pipe_resources(struct hif_usb_pipe *pipe)
 		urb_context = hif_usb_alloc_urb_from_pipe(pipe);
 		if (urb_context == NULL)
 			break;
-
-		usb_free_urb(urb_context->urb);
-		urb_context->urb = NULL;
 		kfree(urb_context);
 	}
 
@@ -362,13 +317,17 @@ static void hif_usb_post_recv_transfers(struct hif_usb_pipe *recv_pipe,
 
 		urb_context->buf = dev_alloc_skb(buffer_length);
 		if (urb_context->buf == NULL) {
-			hif_usb_cleanup_recv_urb(urb_context);
-			break;
+			goto err_cleanup_urb;
 		}
 
 		data = urb_context->buf->data;
 		len = urb_context->buf->len;
-		urb = urb_context->urb;
+
+		urb = usb_alloc_urb(0, GFP_ATOMIC);
+		if (urb == NULL) {
+			goto err_cleanup_urb;
+		}
+
 		usb_fill_bulk_urb(urb,
 				  recv_pipe->ar_usb->udev,
 				  recv_pipe->usb_pipe_handle,
@@ -383,42 +342,24 @@ static void hif_usb_post_recv_transfers(struct hif_usb_pipe *recv_pipe,
 			   recv_pipe->usb_pipe_handle, recv_pipe->ep_address,
 			   buffer_length, urb_context->buf);
 
-		hif_usb_enqueue_pending_transfer(recv_pipe, urb_context);
-
+		usb_anchor_urb(urb, &recv_pipe->urb_submitted);
 		usb_status = usb_submit_urb(urb, GFP_ATOMIC);
 
 		if (usb_status) {
 			ath6kl_dbg(ATH6KL_DBG_USB_BULK,
 				   "ath6kl usb : usb bulk recv failed %d\n",
 				   usb_status);
-			hif_usb_remove_pending_transfer(urb_context);
-			hif_usb_cleanup_recv_urb(urb_context);
-			break;
+			usb_unanchor_urb(urb);
+			usb_free_urb(urb);
+			goto err_cleanup_urb;
 		}
-
+		usb_free_urb(urb);
 	}
-}
+	return;
 
-static void hif_usb_flush_pending_transfers(struct hif_usb_pipe *pipe)
-{
-	struct hif_urb_context *urb_context;
-
-	ath6kl_dbg(ATH6KL_DBG_USB, "%s pipe : %d\n", __func__,
-		   pipe->logical_pipe_num);
-
-	while (1) {
-		urb_context = hif_usb_dequeue_pending_transfer(pipe);
-		if (urb_context == NULL)
-			break;
-
-		if (urb_context->urb != NULL) {
-			ath6kl_dbg(ATH6KL_DBG_USB, "  killing urb: 0x%p\n",
-				   urb_context->urb);
-			/* killing the URB will cause the completion to run */
-			usb_kill_urb(urb_context->urb);
-		}
-
-	}
+err_cleanup_urb:
+	hif_usb_cleanup_recv_urb(urb_context);
+	return;
 }
 
 static void hif_usb_flush_all(struct ath6kl_usb *device)
@@ -427,7 +368,7 @@ static void hif_usb_flush_all(struct ath6kl_usb *device)
 
 	for (i = 0; i < HIF_USB_PIPE_MAX; i++) {
 		if (device->pipes[i].ar_usb != NULL)
-			hif_usb_flush_pending_transfers(&device->pipes[i]);
+			usb_kill_anchored_urbs(&device->pipes[i].urb_submitted);
 	}
 
 	/* flushing any pending I/O may schedule work
@@ -474,9 +415,6 @@ static void hif_usb_recv_complete(struct urb *urb)
 		   "%s: recv pipe: %d, stat:%d, len:%d urb:0x%p\n", __func__,
 		   pipe->logical_pipe_num, urb->status, urb->actual_length,
 		   urb);
-
-	/* this urb is not pending anymore */
-	hif_usb_remove_pending_transfer(urb_context);
 
 	if (urb->status != 0) {
 		status = -EIO;
@@ -534,9 +472,6 @@ static void hif_usb_usb_transmit_complete(struct urb *urb)
 			"%s: pipe: %d, stat:%d, len:%d\n",
 			__func__, pipe->logical_pipe_num, urb->status,
 			urb->actual_length);
-
-	/* this urb is not pending anymore */
-	hif_usb_remove_pending_transfer(urb_context);
 
 	if (urb->status != 0) {
 		ath6kl_dbg(ATH6KL_DBG_USB_BULK,
@@ -730,11 +665,17 @@ int hif_send(struct ath6kl *ar, u8 PipeID, struct sk_buff *hdr_buf,
 		status = -ENOMEM;
 		goto fail_hif_send;
 	}
-	urb = urb_context->urb;
 	urb_context->buf = buf;
 
 	data = buf->data;
 	len = buf->len;
+	urb = usb_alloc_urb(0, GFP_ATOMIC);
+	if (urb == NULL) {
+		status = -ENOMEM;
+		hif_usb_free_urb_to_pipe(urb_context->pipe,
+			urb_context);
+		goto fail_hif_send;
+	}
 
 	usb_fill_bulk_urb(urb,
 			  device->udev,
@@ -753,25 +694,21 @@ int hif_send(struct ath6kl *ar, u8 PipeID, struct sk_buff *hdr_buf,
 		   pipe->logical_pipe_num, pipe->usb_pipe_handle,
 		   pipe->ep_address, len);
 
-	hif_usb_enqueue_pending_transfer(pipe, urb_context);
-
+	usb_anchor_urb(urb, &pipe->urb_submitted);
 	usb_status = usb_submit_urb(urb, GFP_ATOMIC);
 
 	if (usb_status) {
 		ath6kl_dbg(ATH6KL_DBG_USB_BULK,
 			   "ath6kl usb : usb bulk transmit failed %d\n",
 			   usb_status);
-		hif_usb_remove_pending_transfer(urb_context);
+		usb_unanchor_urb(urb);
 		hif_usb_free_urb_to_pipe(urb_context->pipe,
 					 urb_context);
-		status = -EPERM;
+		status = -EINVAL;
 	}
+	usb_free_urb(urb);
 
 fail_hif_send:
-	if ((status != 0) && (status != -ENOMEM))
-		ath6kl_dbg(ATH6KL_DBG_USB_BULK,
-			"athusb send failed %d\n", status);
-
 	return status;
 }
 
