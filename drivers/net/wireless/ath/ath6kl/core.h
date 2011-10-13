@@ -473,6 +473,7 @@ struct ath6kl {
 	struct workqueue_struct *ath6kl_wq;
 
 	struct ath6kl_node_table scan_table;
+	u16 next_chan;
 };
 
 static inline void *ath6kl_priv(struct net_device *dev)
