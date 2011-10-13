@@ -1346,10 +1346,6 @@ int ath6kl_htc_conn_service(struct htc_target *handle,
 			disable_credit_flowctrl = true;
 		}
 
-		/* Only enable credit for WMI service */
-		if (conn_req->svc_id != WMI_CONTROL_SVC)
-			disable_credit_flowctrl = true;
-
 		set_htc_pkt_info(packet, NULL, (u8 *) conn_msg,
 				 length,
 				 ENDPOINT_0, HTC_SERVICE_TX_PACKET_TAG);
