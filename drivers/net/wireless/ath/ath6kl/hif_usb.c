@@ -15,6 +15,7 @@
  */
 #include "hif_usb.h"
 #include "debug.h"
+#include "cfg80211.h"
 
 /* function declarations */
 static void hif_usb_recv_complete(struct urb *urb);
@@ -1041,6 +1042,7 @@ static int ath6kl_usb_probe(struct usb_interface *interface,
 	result = ath6kl_core_init(ar);
 
 	if (result) {
+		ath6kl_cfg80211_deinit(ar);
 		ath6kl_err("Failed to init ath6kl core\n");
 		goto err_ath6kl_core;
 	}
