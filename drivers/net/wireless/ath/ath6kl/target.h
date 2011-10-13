@@ -339,4 +339,8 @@ struct host_interest {
 
 #define AR6004_REV1_BOARD_DATA_ADDRESS          0x433900
 #define AR6004_REV1_RAM_RESERVE_SIZE            19456
+
+#define AR6004_REV2_BOARD_DATA_ADDRESS          0x43d400
+#define AR6004_REV2_RAM_RESERVE_SIZE            11264
+
 #endif

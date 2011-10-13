@@ -617,7 +617,8 @@ static u32 ath6kl_get_load_address(u32 target_ver, enum addr_type type)
 {
 	WARN_ON(target_ver != AR6003_REV2_VERSION &&
 		target_ver != AR6003_REV3_VERSION &&
-		target_ver != AR6004_REV1_VERSION);
+		target_ver != AR6004_REV1_VERSION &&
+		target_ver != AR6004_REV2_VERSION);
 
 	switch (type) {
 	case DATASET_PATCH_ADDR:
@@ -670,6 +671,9 @@ static int ath6kl_fetch_board_file(struct ath6kl *ar)
 	case AR6004_REV1_VERSION:
 		filename = AR6004_REV1_BOARD_DATA_FILE;
 		break;
+	case AR6004_REV2_VERSION:
+		filename = AR6004_REV2_BOARD_DATA_FILE;
+		break;
 	default:
 		filename = AR6003_REV3_BOARD_DATA_FILE;
 		break;
@@ -692,6 +696,9 @@ static int ath6kl_fetch_board_file(struct ath6kl *ar)
 		break;
 	case AR6004_REV1_VERSION:
 		filename = AR6004_REV1_DEFAULT_BOARD_DATA_FILE;
+		break;
+	case AR6004_REV2_VERSION:
+		filename = AR6004_REV2_DEFAULT_BOARD_DATA_FILE;
 		break;
 	default:
 		filename = AR6003_REV3_DEFAULT_BOARD_DATA_FILE;
@@ -731,7 +738,11 @@ static int ath6kl_upload_board_file(struct ath6kl *ar)
 	 * writing board data.
 	 */
 	if (ar->target_type == TARGET_TYPE_AR6004) {
-		board_address = AR6004_REV1_BOARD_DATA_ADDRESS;
+		if (ar->version.target_ver == AR6004_REV1_VERSION)
+			board_address = AR6004_REV1_BOARD_DATA_ADDRESS;
+		else
+			board_address = AR6004_REV2_BOARD_DATA_ADDRESS;
+
 		ath6kl_bmi_write(ar,
 				ath6kl_get_hi_item_addr(ar,
 				HI_ITEM(hi_board_data)),
@@ -827,6 +838,7 @@ static int ath6kl_upload_otp(struct ath6kl *ar)
 		filename = AR6003_REV2_OTP_FILE;
 		break;
 	case AR6004_REV1_VERSION:
+	case AR6004_REV2_VERSION:
 		ath6kl_dbg(ATH6KL_DBG_TRC, "AR6004 doesn't need OTP file\n");
 		return 0;
 		break;
@@ -877,6 +889,9 @@ static int ath6kl_upload_firmware(struct ath6kl *ar)
 	case AR6004_REV1_VERSION:
 		filename = AR6004_REV1_FIRMWARE_FILE;
 		break;
+	case AR6004_REV2_VERSION:
+		filename = AR6004_REV2_FIRMWARE_FILE;
+		break;
 	default:
 		filename = AR6003_REV3_FIRMWARE_FILE;
 		break;
@@ -924,6 +939,7 @@ static int ath6kl_upload_patch(struct ath6kl *ar)
 		filename = AR6003_REV2_PATCH_FILE;
 		break;
 	case AR6004_REV1_VERSION:
+	case AR6004_REV2_VERSION:
 		/* FIXME: implement for AR6004 */
 		return 0;
 		break;

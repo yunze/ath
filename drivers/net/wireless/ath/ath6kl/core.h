@@ -84,6 +84,13 @@
 #define AR6004_REV1_DEFAULT_BOARD_DATA_FILE \
 	"ath6k/AR6004/hw1.0/bdata.DB132.bin"
 
+/* AR6004 1.1 definitions */
+#define AR6004_REV2_VERSION                 0x30000001
+#define AR6004_REV2_FIRMWARE_FILE           "ath6k/AR6004/hw1.1/fw.ram.bin"
+#define AR6004_REV2_BOARD_DATA_FILE         "ath6k/AR6004/hw1.1/bdata.bin"
+#define AR6004_REV2_DEFAULT_BOARD_DATA_FILE \
+	"ath6k/AR6004/hw1.1/bdata.DB132.bin"
+
 /* Per STA data, used in AP mode */
 #define STA_PS_AWAKE		BIT(0)
 #define	STA_PS_SLEEP		BIT(1)
