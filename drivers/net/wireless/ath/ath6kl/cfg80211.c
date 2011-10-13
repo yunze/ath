@@ -802,18 +802,21 @@ static int ath6kl_cfg80211_scan(struct wiphy *wiphy, struct net_device *ndev,
 				struct cfg80211_scan_request *request)
 {
 	struct ath6kl *ar = (struct ath6kl *)ath6kl_priv(ndev);
+	s8 n_channels = 0;
+	u16 *channels = NULL;
 	int ret = 0;
 
 	if (!ath6kl_cfg80211_ready(ar))
 		return -EIO;
 
 	if (!ar->usr_bss_filter) {
-		if (ath6kl_wmi_bssfilter_cmd(ar->wmi,
-					     (test_bit(CONNECTED, &ar->flag) ?
-					     ALL_BUT_BSS_FILTER :
-					     ALL_BSS_FILTER), 0) != 0) {
+		ret = ath6kl_wmi_bssfilter_cmd(
+			ar->wmi,
+			(test_bit(CONNECTED, &ar->flag) ?
+			 ALL_BUT_BSS_FILTER : ALL_BSS_FILTER), 0);
+		if (ret) {
 			ath6kl_err("couldn't set bss filtering\n");
-			return -EIO;
+			return ret;
 		}
 	}
 
@@ -830,13 +833,46 @@ static int ath6kl_cfg80211_scan(struct wiphy *wiphy, struct net_device *ndev,
 						  request->ssids[i].ssid);
 	}
 
-	if (ath6kl_wmi_startscan_cmd(ar->wmi, WMI_LONG_SCAN, 0,
-				     false, 0, 0, 0, NULL) != 0) {
-		ath6kl_err("wmi_startscan_cmd failed\n");
-		ret = -EIO;
+	if (request->ie) {
+		ret = ath6kl_wmi_set_appie_cmd(ar->wmi, WMI_FRAME_PROBE_REQ,
+					       request->ie, request->ie_len);
+		if (ret) {
+			ath6kl_err("failed to set Probe Request appie for "
+				   "scan");
+			return ret;
+		}
 	}
 
-	ar->scan_req = request;
+	/*
+	 * Scan only the requested channels if the request specifies a set of
+	 * channels. If the list is longer than the target supports, do not
+	 * configure the list and instead, scan all available channels.
+	 */
+	if (request->n_channels > 0 &&
+	    request->n_channels <= WMI_MAX_CHANNELS) {
+		u8 i;
+
+		n_channels = request->n_channels;
+
+		channels = kzalloc(n_channels * sizeof(u16), GFP_KERNEL);
+		if (channels == NULL) {
+			ath6kl_warn("failed to set scan channels, "
+				    "scan all channels");
+			n_channels = 0;
+		}
+
+		for (i = 0; i < n_channels; i++)
+			channels[i] = request->channels[i]->center_freq;
+	}
+
+	ret = ath6kl_wmi_startscan_cmd(ar->wmi, WMI_LONG_SCAN, 0,
+				       false, 0, 0, n_channels, channels);
+	if (ret)
+		ath6kl_err("wmi_startscan_cmd failed\n");
+	else
+		ar->scan_req = request;
+
+	kfree(channels);
 
 	return ret;
 }
