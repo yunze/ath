@@ -238,8 +238,6 @@ static int ath6kl_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 {
 	struct ath6kl *ar = ath6kl_priv(dev);
 	int status;
-	const unsigned char wps_oui[] = {0x00, 0x50, 0xf2, 0x04};
-	unsigned char *ie = sme->ie;
 
 	ar->sme_state = SME_CONNECTING;
 
@@ -366,16 +364,6 @@ static int ath6kl_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 	}
 
 	ar->nw_type = ar->next_mode;
-	if (sme->ie_len >= 6 &&
-		ie[0] == WLAN_EID_VENDOR_SPECIFIC &&
-		memcmp(ie+2, wps_oui, sizeof(wps_oui)) == 0) {
-		ar->connect_ctrl_flags |= CONNECT_WPS_FLAG;
-		ar->auth_mode = NONE_AUTH;
-		ath6kl_dbg(ATH6KL_DBG_WLAN_CFG,
-			"%s: WPS IE detected -- setting WPS flag\n", __func__);
-	} else {
-		ar->connect_ctrl_flags &= ~CONNECT_WPS_FLAG;
-	}
 
 	ath6kl_dbg(ATH6KL_DBG_WLAN_CFG,
 		   "%s: connect called with authmode %d dot11 auth %d"
