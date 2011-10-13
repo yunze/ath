@@ -1726,10 +1726,10 @@ struct wireless_dev *ath6kl_cfg80211_init(struct device *dev)
 	    BIT(NL80211_IFTYPE_ADHOC);
 	/* max num of ssids that can be probed during scanning */
 	wdev->wiphy->max_scan_ssids = MAX_PROBED_SSID_INDEX;
+	wdev->wiphy->max_scan_ie_len = 1000; /* FIX: what is correct limit? */
 	wdev->wiphy->bands[IEEE80211_BAND_2GHZ] = &ath6kl_band_2ghz;
 	wdev->wiphy->bands[IEEE80211_BAND_5GHZ] = &ath6kl_band_5ghz;
 	wdev->wiphy->signal_type = CFG80211_SIGNAL_TYPE_MBM;
-	wdev->wiphy->max_scan_ie_len = 200;
 
 	wdev->wiphy->cipher_suites = cipher_suites;
 	wdev->wiphy->n_cipher_suites = ARRAY_SIZE(cipher_suites);
