@@ -985,11 +985,23 @@ static int ath6kl_usb_bmi_send_buf(struct ath6kl *ar, u8 * buf, u32 len)
 	return 0;
 }
 
+static int ath6kl_usb_power_on(struct ath6kl *ar)
+{
+	return 0;
+}
+
+static int ath6kl_usb_power_off(struct ath6kl *ar)
+{
+	return 0;
+}
+
 static const struct ath6kl_hif_ops ath6kl_usb_ops = {
 	.read_reg_diag = ath6kl_usb_read_reg_diag,
 	.write_reg_diag = ath6kl_usb_write_reg_diag,
 	.bmi_recv_buf = ath6kl_usb_bmi_recv_buf,
 	.bmi_send_buf = ath6kl_usb_bmi_send_buf,
+	.power_on = ath6kl_usb_power_on,
+	.power_off = ath6kl_usb_power_off,
 };
 
 /* ath6kl usb driver registered functions */

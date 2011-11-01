@@ -1101,8 +1101,8 @@ static int ath6kl_upload_otp(struct ath6kl *ar)
 	bool from_hw = false;
 	int ret;
 
-	if (WARN_ON(ar->fw_otp == NULL))
-		return -ENOENT;
+	if (ar->fw_otp == NULL)
+		return 0;
 
 	address = ar->hw.app_load_addr;
 
