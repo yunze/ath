@@ -69,6 +69,9 @@
 #ifndef __iwl_commands_h__
 #define __iwl_commands_h__
 
+#include <linux/etherdevice.h>
+#include <linux/ieee80211.h>
+
 struct iwl_priv;
 
 /* uCode version contains 4 values: Major/Minor/API/Serial */
@@ -86,6 +89,7 @@ struct iwl_priv;
 enum {
 	REPLY_ALIVE = 0x1,
 	REPLY_ERROR = 0x2,
+	REPLY_ECHO = 0x3,		/* test command */
 
 	/* RXON and QOS commands */
 	REPLY_RXON = 0x10,
@@ -670,7 +674,6 @@ struct iwl_rxon_assoc_cmd {
 
 #define IWL_CONN_MAX_LISTEN_INTERVAL	10
 #define IWL_MAX_UCODE_BEACON_INTERVAL	4 /* 4096 */
-#define IWL39_MAX_UCODE_BEACON_INTERVAL	1 /* 1024 */
 
 /*
  * REPLY_RXON_TIMING = 0x14 (command, has simple generic response)
@@ -806,6 +809,7 @@ struct iwl_qosparam_cmd {
 #define	IWLAGN_STATION_COUNT	16
 
 #define	IWL_INVALID_STATION 	255
+#define IWL_MAX_TID_COUNT	9
 
 #define STA_FLG_TX_RATE_MSK		cpu_to_le32(1 << 2)
 #define STA_FLG_PWR_SAVE_MSK		cpu_to_le32(1 << 8)
@@ -3210,12 +3214,17 @@ enum iwl_ucode_calib_cfg {
 					IWL_CALIB_CFG_LO_IDX |		\
 					IWL_CALIB_CFG_TX_IQ_IDX |	\
 					IWL_CALIB_CFG_RX_IQ_IDX |	\
-					IWL_CALIB_CFG_NOISE_IDX |	\
-					IWL_CALIB_CFG_CRYSTAL_IDX |	\
+					IWL_CALIB_CFG_CRYSTAL_IDX)
+
+#define IWL_CALIB_RT_CFG_ALL	cpu_to_le32(IWL_CALIB_CFG_RX_BB_IDX |	\
+					IWL_CALIB_CFG_DC_IDX |		\
+					IWL_CALIB_CFG_LO_IDX |		\
+					IWL_CALIB_CFG_TX_IQ_IDX |	\
+					IWL_CALIB_CFG_RX_IQ_IDX |	\
 					IWL_CALIB_CFG_TEMPERATURE_IDX |	\
 					IWL_CALIB_CFG_PAPD_IDX |	\
-					IWL_CALIB_CFG_SENSITIVITY_IDX |	\
-					IWL_CALIB_CFG_TX_PWR_IDX)
+					IWL_CALIB_CFG_TX_PWR_IDX |	\
+					IWL_CALIB_CFG_CRYSTAL_IDX)
 
 #define IWL_CALIB_CFG_FLAG_SEND_COMPLETE_NTFY_MSK	cpu_to_le32(BIT(0))
 
@@ -3262,6 +3271,14 @@ struct iwl_calib_xtal_freq_cmd {
 struct iwl_calib_temperature_offset_cmd {
 	struct iwl_calib_hdr hdr;
 	__le16 radio_sensor_offset;
+	__le16 reserved;
+} __packed;
+
+struct iwl_calib_temperature_offset_v2_cmd {
+	struct iwl_calib_hdr hdr;
+	__le16 radio_sensor_offset_high;
+	__le16 radio_sensor_offset_low;
+	__le16 burntVoltageRef;
 	__le16 reserved;
 } __packed;
 
@@ -3909,6 +3926,7 @@ struct iwlagn_wowlan_kek_kck_material_cmd {
  * Union of all expected notifications/responses:
  *
  *****************************************************************************/
+#define FH_RSCSR_FRAME_SIZE_MSK	(0x00003FFF)	/* bits 0-13 */
 
 struct iwl_rx_packet {
 	/*

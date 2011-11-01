@@ -62,18 +62,6 @@ void ath9k_hw_txstart(struct ath_hw *ah, u32 q)
 }
 EXPORT_SYMBOL(ath9k_hw_txstart);
 
-void ath9k_hw_cleartxdesc(struct ath_hw *ah, void *ds)
-{
-	struct ar5416_desc *ads = AR5416DESC(ds);
-
-	ads->ds_txstatus0 = ads->ds_txstatus1 = 0;
-	ads->ds_txstatus2 = ads->ds_txstatus3 = 0;
-	ads->ds_txstatus4 = ads->ds_txstatus5 = 0;
-	ads->ds_txstatus6 = ads->ds_txstatus7 = 0;
-	ads->ds_txstatus8 = ads->ds_txstatus9 = 0;
-}
-EXPORT_SYMBOL(ath9k_hw_cleartxdesc);
-
 u32 ath9k_hw_numtxpending(struct ath_hw *ah, u32 q)
 {
 	u32 npend;
@@ -345,21 +333,8 @@ int ath9k_hw_setuptxqueue(struct ath_hw *ah, enum ath9k_tx_queue type,
 	}
 	memset(qi, 0, sizeof(struct ath9k_tx_queue_info));
 	qi->tqi_type = type;
-	if (qinfo == NULL) {
-		qi->tqi_qflags =
-			TXQ_FLAG_TXOKINT_ENABLE
-			| TXQ_FLAG_TXERRINT_ENABLE
-			| TXQ_FLAG_TXDESCINT_ENABLE | TXQ_FLAG_TXURNINT_ENABLE;
-		qi->tqi_aifs = INIT_AIFS;
-		qi->tqi_cwmin = ATH9K_TXQ_USEDEFAULT;
-		qi->tqi_cwmax = INIT_CWMAX;
-		qi->tqi_shretry = INIT_SH_RETRY;
-		qi->tqi_lgretry = INIT_LG_RETRY;
-		qi->tqi_physCompBuf = 0;
-	} else {
-		qi->tqi_physCompBuf = qinfo->tqi_physCompBuf;
-		(void) ath9k_hw_set_txq_props(ah, q, qinfo);
-	}
+	qi->tqi_physCompBuf = qinfo->tqi_physCompBuf;
+	(void) ath9k_hw_set_txq_props(ah, q, qinfo);
 
 	return q;
 }
@@ -564,7 +539,7 @@ bool ath9k_hw_resettxqueue(struct ath_hw *ah, u32 q)
 EXPORT_SYMBOL(ath9k_hw_resettxqueue);
 
 int ath9k_hw_rxprocdesc(struct ath_hw *ah, struct ath_desc *ds,
-			struct ath_rx_status *rs, u64 tsf)
+			struct ath_rx_status *rs)
 {
 	struct ar5416_desc ads;
 	struct ar5416_desc *adsp = AR5416DESC(ds);
@@ -609,7 +584,7 @@ int ath9k_hw_rxprocdesc(struct ath_hw *ah, struct ath_desc *ds,
 	else
 		rs->rs_keyix = ATH9K_RXKEYIX_INVALID;
 
-	rs->rs_rate = RXSTATUS_RATE(ah, (&ads));
+	rs->rs_rate = MS(ads.ds_rxstatus0, AR_RxRate);
 	rs->rs_more = (ads.ds_rxstatus1 & AR_RxMore) ? 1 : 0;
 
 	rs->rs_isaggr = (ads.ds_rxstatus8 & AR_RxAggr) ? 1 : 0;
@@ -645,8 +620,8 @@ int ath9k_hw_rxprocdesc(struct ath_hw *ah, struct ath_desc *ds,
 			rs->rs_status |= ATH9K_RXERR_DECRYPT;
 		else if (ads.ds_rxstatus8 & AR_MichaelErr)
 			rs->rs_status |= ATH9K_RXERR_MIC;
-		else if (ads.ds_rxstatus8 & AR_KeyMiss)
-			rs->rs_status |= ATH9K_RXERR_DECRYPT;
+		if (ads.ds_rxstatus8 & AR_KeyMiss)
+			rs->rs_status |= ATH9K_RXERR_KEYMISS;
 	}
 
 	return 0;
@@ -852,9 +827,9 @@ void ath9k_hw_enable_interrupts(struct ath_hw *ah)
 }
 EXPORT_SYMBOL(ath9k_hw_enable_interrupts);
 
-void ath9k_hw_set_interrupts(struct ath_hw *ah, enum ath9k_int ints)
+void ath9k_hw_set_interrupts(struct ath_hw *ah)
 {
-	enum ath9k_int omask = ah->imask;
+	enum ath9k_int ints = ah->imask;
 	u32 mask, mask2;
 	struct ath9k_hw_capabilities *pCap = &ah->caps;
 	struct ath_common *common = ath9k_hw_common(ah);
@@ -862,7 +837,7 @@ void ath9k_hw_set_interrupts(struct ath_hw *ah, enum ath9k_int ints)
 	if (!(ints & ATH9K_INT_GLOBAL))
 		ath9k_hw_disable_interrupts(ah);
 
-	ath_dbg(common, ATH_DBG_INTERRUPT, "0x%x => 0x%x\n", omask, ints);
+	ath_dbg(common, ATH_DBG_INTERRUPT, "New interrupt mask 0x%x\n", ints);
 
 	mask = ints & ATH9K_INT_COMMON;
 	mask2 = 0;

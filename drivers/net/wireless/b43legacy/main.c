@@ -60,7 +60,6 @@ MODULE_AUTHOR("Stefano Brivio");
 MODULE_AUTHOR("Michael Buesch");
 MODULE_LICENSE("GPL");
 
-MODULE_FIRMWARE(B43legacy_SUPPORTED_FIRMWARE_ID);
 MODULE_FIRMWARE("b43legacy/ucode2.fw");
 MODULE_FIRMWARE("b43legacy/ucode4.fw");
 
@@ -2467,7 +2466,8 @@ out:
 	}
 }
 
-static int b43legacy_op_conf_tx(struct ieee80211_hw *hw, u16 queue,
+static int b43legacy_op_conf_tx(struct ieee80211_hw *hw,
+				struct ieee80211_vif *vif, u16 queue,
 				const struct ieee80211_tx_queue_params *params)
 {
 	return 0;
@@ -3947,8 +3947,7 @@ static void b43legacy_print_driverinfo(void)
 	feat_dma = "D";
 #endif
 	printk(KERN_INFO "Broadcom 43xx-legacy driver loaded "
-	       "[ Features: %s%s%s%s, Firmware-ID: "
-	       B43legacy_SUPPORTED_FIRMWARE_ID " ]\n",
+	       "[ Features: %s%s%s%s ]\n",
 	       feat_pci, feat_leds, feat_pio, feat_dma);
 }
 

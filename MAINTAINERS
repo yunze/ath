@@ -1230,7 +1230,7 @@ F:	Documentation/aoe/
 F:	drivers/block/aoe/
 
 ATHEROS ATH GENERIC UTILITIES
-M:	"Luis R. Rodriguez" <lrodriguez@atheros.com>
+M:	"Luis R. Rodriguez" <mcgrof@qca.qualcomm.com>
 L:	linux-wireless@vger.kernel.org
 S:	Supported
 F:	drivers/net/wireless/ath/*
@@ -1238,7 +1238,7 @@ F:	drivers/net/wireless/ath/*
 ATHEROS ATH5K WIRELESS DRIVER
 M:	Jiri Slaby <jirislaby@gmail.com>
 M:	Nick Kossifidis <mickflemm@gmail.com>
-M:	"Luis R. Rodriguez" <lrodriguez@atheros.com>
+M:	"Luis R. Rodriguez" <mcgrof@qca.qualcomm.com>
 M:	Bob Copeland <me@bobcopeland.com>
 L:	linux-wireless@vger.kernel.org
 L:	ath5k-devel@lists.ath5k.org
@@ -1246,11 +1246,19 @@ W:	http://wireless.kernel.org/en/users/Drivers/ath5k
 S:	Maintained
 F:	drivers/net/wireless/ath/ath5k/
 
+ATHEROS ATH6KL WIRELESS DRIVER
+M:	Kalle Valo <kvalo@qca.qualcomm.com>
+L:	linux-wireless@vger.kernel.org
+W:	http://wireless.kernel.org/en/users/Drivers/ath6kl
+T:	git git://git.kernel.org/pub/scm/linux/kernel/git/kvalo/ath6kl.git
+S:	Supported
+F:	drivers/net/wireless/ath/ath6kl/
+
 ATHEROS ATH9K WIRELESS DRIVER
-M:	"Luis R. Rodriguez" <lrodriguez@atheros.com>
-M:	Jouni Malinen <jmalinen@atheros.com>
-M:	Vasanthakumar Thiagarajan <vasanth@atheros.com>
-M:	Senthil Balasubramanian <senthilkumar@atheros.com>
+M:	"Luis R. Rodriguez" <mcgrof@qca.qualcomm.com>
+M:	Jouni Malinen <jouni@qca.qualcomm.com>
+M:	Vasanthakumar Thiagarajan <vthiagar@qca.qualcomm.com>
+M:	Senthil Balasubramanian <senthilb@qca.qualcomm.com>
 L:	linux-wireless@vger.kernel.org
 L:	ath9k-devel@lists.ath9k.org
 W:	http://wireless.kernel.org/en/users/Drivers/ath9k
@@ -1278,7 +1286,7 @@ F:	drivers/input/misc/ati_remote2.c
 ATLX ETHERNET DRIVERS
 M:	Jay Cliburn <jcliburn@gmail.com>
 M:	Chris Snook <chris.snook@gmail.com>
-M:	Jie Yang <jie.yang@atheros.com>
+M:	Jie Yang <yangjie@qca.qualcomm.com>
 L:	netdev@vger.kernel.org
 W:	http://sourceforge.net/projects/atl1
 W:	http://atl1.sourceforge.net
@@ -1574,7 +1582,6 @@ F:	drivers/scsi/bfa/
 
 BROCADE BNA 10 GIGABIT ETHERNET DRIVER
 M:	Rasesh Mody <rmody@brocade.com>
-M:	Debashis Dutt <ddutt@brocade.com>
 L:	netdev@vger.kernel.org
 S:	Supported
 F:	drivers/net/bna/
@@ -1758,7 +1765,6 @@ F:	Documentation/zh_CN/
 
 CISCO VIC ETHERNET NIC DRIVER
 M:	Christian Benvenuti <benve@cisco.com>
-M:	Vasanthy Kolluri <vkolluri@cisco.com>
 M:	Roopa Prabhu <roprabhu@cisco.com>
 M:	David Wang <dwang2@cisco.com>
 S:	Supported
@@ -1883,7 +1889,7 @@ S:	Maintained
 F:	drivers/connector/
 
 CONTROL GROUPS (CGROUPS)
-M:	Paul Menage <menage@google.com>
+M:	Paul Menage <paul@paulmenage.org>
 M:	Li Zefan <lizf@cn.fujitsu.com>
 L:	containers@lists.linux-foundation.org
 S:	Maintained
@@ -1932,7 +1938,7 @@ S:	Maintained
 F:	tools/power/cpupower
 
 CPUSETS
-M:	Paul Menage <menage@google.com>
+M:	Paul Menage <paul@paulmenage.org>
 W:	http://www.bullopensource.org/cpuset/
 W:	http://oss.sgi.com/projects/cpusets/
 S:	Supported
@@ -2649,11 +2655,11 @@ F:	drivers/net/wan/dlci.c
 F:	drivers/net/wan/sdla.c
 
 FRAMEBUFFER LAYER
-M:	Paul Mundt <lethal@linux-sh.org>
+M:	Florian Tobias Schandinat <FlorianSchandinat@gmx.de>
 L:	linux-fbdev@vger.kernel.org
 W:	http://linux-fbdev.sourceforge.net/
 Q:	http://patchwork.kernel.org/project/linux-fbdev/list/
-T:	git git://git.kernel.org/pub/scm/linux/kernel/git/lethal/fbdev-2.6.git
+T:	git git://github.com/schandinat/linux-2.6.git fbdev-next
 S:	Maintained
 F:	Documentation/fb/
 F:	Documentation/devicetree/bindings/fb/
@@ -3262,6 +3268,17 @@ F:	Documentation/input/multi-touch-protocol.txt
 F:	drivers/input/input-mt.c
 K:	\b(ABS|SYN)_MT_
 
+INTEL C600 SERIES SAS CONTROLLER DRIVER
+M:	Intel SCU Linux support <intel-linux-scu@intel.com>
+M:	Dan Williams <dan.j.williams@intel.com>
+M:	Dave Jiang <dave.jiang@intel.com>
+M:	Ed Nadolski <edmund.nadolski@intel.com>
+L:	linux-scsi@vger.kernel.org
+T:	git git://git.kernel.org/pub/scm/linux/kernel/git/djbw/isci.git
+S:	Maintained
+F:	drivers/scsi/isci/
+F:	firmware/isci/
+
 INTEL IDLE DRIVER
 M:	Len Brown <lenb@kernel.org>
 L:	linux-pm@lists.linux-foundation.org
@@ -3416,7 +3433,7 @@ M:	Wey-Yi Guy <wey-yi.w.guy@intel.com>
 M:	Intel Linux Wireless <ilw@linux.intel.com>
 L:	linux-wireless@vger.kernel.org
 W:	http://intellinuxwireless.org
-T:	git git://git.kernel.org/pub/scm/linux/kernel/git/iwlwifi/iwlwifi-2.6.git
+T:	git git://git.kernel.org/pub/scm/linux/kernel/git/iwlwifi/iwlwifi.git
 S:	Supported
 F:	drivers/net/wireless/iwlwifi/
 
@@ -4404,7 +4421,8 @@ L:	netfilter@vger.kernel.org
 L:	coreteam@netfilter.org
 W:	http://www.netfilter.org/
 W:	http://www.iptables.org/
-T:	git git://git.kernel.org/pub/scm/linux/kernel/git/kaber/nf-2.6.git
+T:	git git://git.kernel.org/pub/scm/linux/kernel/git/netfilter/nf-2.6.git
+T:	git git://git.kernel.org/pub/scm/linux/kernel/git/netfilter/nf-next-2.6.git
 S:	Supported
 F:	include/linux/netfilter*
 F:	include/linux/netfilter/
@@ -4450,8 +4468,8 @@ M:	"David S. Miller" <davem@davemloft.net>
 L:	netdev@vger.kernel.org
 W:	http://www.linuxfoundation.org/en/Net
 W:	http://patchwork.ozlabs.org/project/netdev/list/
-T:	git git://git.kernel.org/pub/scm/linux/kernel/git/davem/net-2.6.git
-T:	git git://git.kernel.org/pub/scm/linux/kernel/git/davem/net-next-2.6.git
+T:	git git://git.kernel.org/pub/scm/linux/kernel/git/davem/net.git
+T:	git git://git.kernel.org/pub/scm/linux/kernel/git/davem/net-next.git
 S:	Maintained
 F:	net/
 F:	include/net/
@@ -4508,6 +4526,17 @@ L:	netdev@vger.kernel.org
 W:	http://www.qlogic.com
 S:	Supported
 F:	drivers/net/netxen/
+
+NFC SUBSYSTEM
+M:	Lauro Ramos Venancio <lauro.venancio@openbossa.org>
+M:	Aloisio Almeida Jr <aloisio.almeida@openbossa.org>
+M:	Samuel Ortiz <sameo@linux.intel.com>
+L:	linux-wireless@vger.kernel.org
+S:	Maintained
+F:	net/nfc/
+F:	include/linux/nfc.h
+F:	include/net/nfc/
+F:	drivers/nfc/
 
 NFS, SUNRPC, AND LOCKD CLIENTS
 M:	Trond Myklebust <Trond.Myklebust@netapp.com>
@@ -4774,7 +4803,7 @@ F:	drivers/net/wireless/orinoco/
 
 OSD LIBRARY and FILESYSTEM
 M:	Boaz Harrosh <bharrosh@panasas.com>
-M:	Benny Halevy <bhalevy@panasas.com>
+M:	Benny Halevy <bhalevy@tonian.com>
 L:	osd-dev@open-osd.org
 W:	http://open-osd.org
 T:	git git://git.open-osd.org/open-osd.git
@@ -4971,7 +5000,7 @@ M:	Paul Mackerras <paulus@samba.org>
 M:	Ingo Molnar <mingo@elte.hu>
 M:	Arnaldo Carvalho de Melo <acme@ghostprotocols.net>
 S:	Supported
-F:	kernel/perf_event*.c
+F:	kernel/events/*
 F:	include/linux/perf_event.h
 F:	arch/*/kernel/perf_event*.c
 F:	arch/*/kernel/*/perf_event*.c
@@ -5532,6 +5561,7 @@ F:	include/media/*7146*
 
 SAMSUNG AUDIO (ASoC) DRIVERS
 M:	Jassi Brar <jassisinghbrar@gmail.com>
+M:	Sangbeom Kim <sbkim73@samsung.com>
 L:	alsa-devel@alsa-project.org (moderated for non-subscribers)
 S:	Supported
 F:	sound/soc/samsung
@@ -6140,12 +6170,6 @@ M:	Jakub Schmidtke <sjakub@gmail.com>
 S:	Odd Fixes
 F:	drivers/staging/asus_oled/
 
-STAGING - ATHEROS ATH6KL WIRELESS DRIVER
-M:	Luis R. Rodriguez <mcgrof@gmail.com>
-M:	Naveen Singh <nsingh@atheros.com>
-S:	Odd Fixes
-F:	drivers/staging/ath6kl/
-
 STAGING - COMEDI
 M:	Ian Abbott <abbotti@mev.co.uk>
 M:	Mori Hess <fmhess@users.sourceforge.net>
@@ -6356,15 +6380,14 @@ F:	net/ipv4/tcp_lp.c
 
 TEGRA SUPPORT
 M:	Colin Cross <ccross@android.com>
-M:	Erik Gilling <konkers@android.com>
 M:	Olof Johansson <olof@lixom.net>
+M:	Stephen Warren <swarren@nvidia.com>
 L:	linux-tegra@vger.kernel.org
-T:	git git://android.git.kernel.org/kernel/tegra.git
+T:	git git://git.kernel.org/pub/scm/linux/kernel/git/olof/tegra.git
 S:	Supported
 F:	arch/arm/mach-tegra
 
 TEHUTI ETHERNET DRIVER
-M:	Alexander Indenbaum <baum@tehutinetworks.net>
 M:	Andy Gospodarek <andy@greyhouse.net>
 L:	netdev@vger.kernel.org
 S:	Supported
@@ -7087,7 +7110,7 @@ S:	Supported
 F:	drivers/mmc/host/vub300.c
 
 W1 DALLAS'S 1-WIRE BUS
-M:	Evgeniy Polyakov <johnpol@2ka.mipt.ru>
+M:	Evgeniy Polyakov <zbr@ioremap.net>
 S:	Maintained
 F:	Documentation/w1/
 F:	drivers/w1/
@@ -7199,6 +7222,9 @@ W:	http://opensource.wolfsonmicro.com/content/linux-drivers-wolfson-devices
 S:	Supported
 F:	Documentation/hwmon/wm83??
 F:	drivers/leds/leds-wm83*.c
+F:	drivers/input/misc/wm831x-on.c
+F:	drivers/input/touchscreen/wm831x-ts.c
+F:	drivers/input/touchscreen/wm97*.c
 F:	drivers/mfd/wm8*.c
 F:	drivers/power/wm83*.c
 F:	drivers/rtc/rtc-wm83*.c
@@ -7208,6 +7234,7 @@ F:	drivers/watchdog/wm83*_wdt.c
 F:	include/linux/mfd/wm831x/
 F:	include/linux/mfd/wm8350/
 F:	include/linux/mfd/wm8400*
+F:	include/linux/wm97xx.h
 F:	include/sound/wm????.h
 F:	sound/soc/codecs/wm*
 

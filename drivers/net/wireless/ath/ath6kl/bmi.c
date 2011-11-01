@@ -48,8 +48,6 @@ int ath6kl_bmi_done(struct ath6kl *ar)
 		return ret;
 	}
 
-	ath6kl_bmi_cleanup(ar);
-
 	return 0;
 }
 
@@ -86,9 +84,9 @@ int ath6kl_bmi_get_target_info(struct ath6kl *ar,
 	if (le32_to_cpu(targ_info->version) == TARGET_VERSION_SENTINAL) {
 		/* Determine how many bytes are in the Target's targ_info */
 		ret = ath6kl_hif_bmi_recv_buf(ar,
-				   (u8 *)&targ_info->byte_count,
-				   sizeof(targ_info->byte_count),
-				   true);
+					      (u8 *)&targ_info->byte_count,
+					      sizeof(targ_info->byte_count),
+					      true);
 		if (ret) {
 			ath6kl_err("unable to read target info byte count: %d\n",
 				   ret);
@@ -106,11 +104,11 @@ int ath6kl_bmi_get_target_info(struct ath6kl *ar,
 
 		/* Read the remainder of the targ_info */
 		ret = ath6kl_hif_bmi_recv_buf(ar,
-				   ((u8 *)targ_info) +
-				   sizeof(targ_info->byte_count),
-				   sizeof(*targ_info) -
-				   sizeof(targ_info->byte_count),
-				   true);
+					      ((u8 *)targ_info) +
+					      sizeof(targ_info->byte_count),
+					      sizeof(*targ_info) -
+					      sizeof(targ_info->byte_count),
+					      true);
 
 		if (ret) {
 			ath6kl_err("Unable to read target info (%d bytes): %d\n",
@@ -194,7 +192,8 @@ int ath6kl_bmi_write(struct ath6kl *ar, u32 addr, u8 *buf, u32 len)
 	const u32 header = sizeof(cid) + sizeof(addr) + sizeof(len);
 	u32 max_data_sz = ath6kl_bmi_get_max_data_size(ar);
 	u32 max_cmd_sz = ath6kl_bmi_get_max_cmd_size(ar);
-	u8 aligned_buf[max_data_sz];
+	/* u8 aligned_buf[max_data_sz]; FIXKVALO */
+	u8 aligned_buf[200];
 	u8 *src;
 
 	if (ar->bmi.done_sent) {
@@ -545,6 +544,11 @@ int ath6kl_bmi_fast_download(struct ath6kl *ar, u32 addr, u8 *buf, u32 len)
 		ret = ath6kl_bmi_lz_stream_start(ar, 0x00);
 	}
 	return ret;
+}
+
+void ath6kl_bmi_reset(struct ath6kl *ar)
+{
+	ar->bmi.done_sent = false;
 }
 
 int ath6kl_bmi_init(struct ath6kl *ar)

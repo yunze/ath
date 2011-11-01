@@ -400,6 +400,7 @@ static u32 ath9k_hw_def_get_eeprom(struct ath_hw *ah,
 	struct ar5416_eeprom_def *eep = &ah->eeprom.def;
 	struct modal_eep_header *pModal = eep->modalHeader;
 	struct base_eep_header *pBase = &eep->baseEepHeader;
+	int band = 0;
 
 	switch (param) {
 	case EEP_NFTHRESH_5:
@@ -414,8 +415,6 @@ static u32 ath9k_hw_def_get_eeprom(struct ath_hw *ah,
 		return get_unaligned_be16(pBase->macAddr + 4);
 	case EEP_REG_0:
 		return pBase->regDmn[0];
-	case EEP_REG_1:
-		return pBase->regDmn[1];
 	case EEP_OP_CAP:
 		return pBase->deviceCap;
 	case EEP_OP_MODE:
@@ -467,6 +466,14 @@ static u32 ath9k_hw_def_get_eeprom(struct ath_hw *ah,
 			return pBase->pwr_table_offset;
 		else
 			return AR5416_PWR_TABLE_OFFSET_DB;
+	case EEP_ANTENNA_GAIN_2G:
+		band = 1;
+		/* fall through */
+	case EEP_ANTENNA_GAIN_5G:
+		return max_t(u8, max_t(u8,
+			pModal[band].antennaGainCh[0],
+			pModal[band].antennaGainCh[1]),
+			pModal[band].antennaGainCh[2]);
 	default:
 		return 0;
 	}
@@ -547,8 +554,7 @@ static void ath9k_hw_def_set_board_values(struct ath_hw *ah,
 				break;
 		}
 
-		if (AR_SREV_5416_20_OR_LATER(ah) &&
-		    (ah->rxchainmask == 5 || ah->txchainmask == 5) && (i != 0))
+		if ((ah->rxchainmask == 5 || ah->txchainmask == 5) && (i != 0))
 			regChainOffset = (i == 1) ? 0x2000 : 0x1000;
 		else
 			regChainOffset = i * 0x1000;
@@ -565,9 +571,8 @@ static void ath9k_hw_def_set_board_values(struct ath_hw *ah,
 			  SM(pModal->iqCalQCh[i],
 			     AR_PHY_TIMING_CTRL4_IQCORR_Q_Q_COFF));
 
-		if ((i == 0) || AR_SREV_5416_20_OR_LATER(ah))
-			ath9k_hw_def_set_gain(ah, pModal, eep, txRxAttenLocal,
-					      regChainOffset, i);
+		ath9k_hw_def_set_gain(ah, pModal, eep, txRxAttenLocal,
+				      regChainOffset, i);
 	}
 
 	if (AR_SREV_9280_20_OR_LATER(ah)) {
@@ -893,8 +898,7 @@ static void ath9k_hw_set_def_power_cal_table(struct ath_hw *ah,
 		      xpdGainValues[2]);
 
 	for (i = 0; i < AR5416_MAX_CHAINS; i++) {
-		if (AR_SREV_5416_20_OR_LATER(ah) &&
-		    (ah->rxchainmask == 5 || ah->txchainmask == 5) &&
+		if ((ah->rxchainmask == 5 || ah->txchainmask == 5) &&
 		    (i != 0)) {
 			regChainOffset = (i == 1) ? 0x2000 : 0x1000;
 		} else
@@ -935,26 +939,23 @@ static void ath9k_hw_set_def_power_cal_table(struct ath_hw *ah,
 
 			ENABLE_REGWRITE_BUFFER(ah);
 
-			if ((i == 0) || AR_SREV_5416_20_OR_LATER(ah)) {
-				if (OLC_FOR_AR9280_20_LATER) {
-					REG_WRITE(ah,
-						AR_PHY_TPCRG5 + regChainOffset,
-						SM(0x6,
-						AR_PHY_TPCRG5_PD_GAIN_OVERLAP) |
-						SM_PD_GAIN(1) | SM_PD_GAIN(2) |
-						SM_PD_GAIN(3) | SM_PD_GAIN(4));
-				} else {
-					REG_WRITE(ah,
-						AR_PHY_TPCRG5 + regChainOffset,
-						SM(pdGainOverlap_t2,
-						AR_PHY_TPCRG5_PD_GAIN_OVERLAP)|
-						SM_PDGAIN_B(0, 1) |
-						SM_PDGAIN_B(1, 2) |
-						SM_PDGAIN_B(2, 3) |
-						SM_PDGAIN_B(3, 4));
-				}
+			if (OLC_FOR_AR9280_20_LATER) {
+				REG_WRITE(ah,
+					AR_PHY_TPCRG5 + regChainOffset,
+					SM(0x6,
+					AR_PHY_TPCRG5_PD_GAIN_OVERLAP) |
+					SM_PD_GAIN(1) | SM_PD_GAIN(2) |
+					SM_PD_GAIN(3) | SM_PD_GAIN(4));
+			} else {
+				REG_WRITE(ah,
+					AR_PHY_TPCRG5 + regChainOffset,
+					SM(pdGainOverlap_t2,
+					AR_PHY_TPCRG5_PD_GAIN_OVERLAP)|
+					SM_PDGAIN_B(0, 1) |
+					SM_PDGAIN_B(1, 2) |
+					SM_PDGAIN_B(2, 3) |
+					SM_PDGAIN_B(3, 4));
 			}
-
 
 			ath9k_adjust_pdadc_values(ah, pwr_table_offset,
 						  diff, pdadcValues);
@@ -992,21 +993,15 @@ static void ath9k_hw_set_def_power_per_rate_table(struct ath_hw *ah,
 						  struct ath9k_channel *chan,
 						  int16_t *ratesArray,
 						  u16 cfgCtl,
-						  u16 AntennaReduction,
-						  u16 twiceMaxRegulatoryPower,
+						  u16 antenna_reduction,
 						  u16 powerLimit)
 {
 #define REDUCE_SCALED_POWER_BY_TWO_CHAIN     6  /* 10*log10(2)*2 */
 #define REDUCE_SCALED_POWER_BY_THREE_CHAIN   9 /* 10*log10(3)*2 */
 
-	struct ath_regulatory *regulatory = ath9k_hw_regulatory(ah);
 	struct ar5416_eeprom_def *pEepData = &ah->eeprom.def;
 	u16 twiceMaxEdgePower = MAX_RATE_POWER;
-	static const u16 tpScaleReductionTable[5] =
-		{ 0, 3, 6, 9, MAX_RATE_POWER };
-
 	int i;
-	int16_t twiceLargestAntenna;
 	struct cal_ctl_data *rep;
 	struct cal_target_power_leg targetPowerOfdm, targetPowerCck = {
 		0, { 0, 0, 0, 0}
@@ -1018,7 +1013,7 @@ static void ath9k_hw_set_def_power_per_rate_table(struct ath_hw *ah,
 	struct cal_target_power_ht targetPowerHt20, targetPowerHt40 = {
 		0, {0, 0, 0, 0}
 	};
-	u16 scaledPower = 0, minCtlPower, maxRegAllowedPower;
+	u16 scaledPower = 0, minCtlPower;
 	static const u16 ctlModesFor11a[] = {
 		CTL_11A, CTL_5GHT20, CTL_11A_EXT, CTL_5GHT40
 	};
@@ -1037,27 +1032,7 @@ static void ath9k_hw_set_def_power_per_rate_table(struct ath_hw *ah,
 
 	ath9k_hw_get_channel_centers(ah, chan, &centers);
 
-	twiceLargestAntenna = max(
-		pEepData->modalHeader
-			[IS_CHAN_2GHZ(chan)].antennaGainCh[0],
-		pEepData->modalHeader
-			[IS_CHAN_2GHZ(chan)].antennaGainCh[1]);
-
-	twiceLargestAntenna = max((u8)twiceLargestAntenna,
-				  pEepData->modalHeader
-				  [IS_CHAN_2GHZ(chan)].antennaGainCh[2]);
-
-	twiceLargestAntenna = (int16_t)min(AntennaReduction -
-					   twiceLargestAntenna, 0);
-
-	maxRegAllowedPower = twiceMaxRegulatoryPower + twiceLargestAntenna;
-
-	if (regulatory->tp_scale != ATH9K_TP_SCALE_MAX) {
-		maxRegAllowedPower -=
-			(tpScaleReductionTable[(regulatory->tp_scale)] * 2);
-	}
-
-	scaledPower = min(powerLimit, maxRegAllowedPower);
+	scaledPower = powerLimit - antenna_reduction;
 
 	switch (ar5416_get_ntxchains(tx_chainmask)) {
 	case 1:
@@ -1262,7 +1237,6 @@ static void ath9k_hw_def_set_txpower(struct ath_hw *ah,
 				    struct ath9k_channel *chan,
 				    u16 cfgCtl,
 				    u8 twiceAntennaReduction,
-				    u8 twiceMaxRegulatoryPower,
 				    u8 powerLimit, bool test)
 {
 #define RT_AR_DELTA(x) (ratesArray[x] - cck_ofdm_delta)
@@ -1284,7 +1258,6 @@ static void ath9k_hw_def_set_txpower(struct ath_hw *ah,
 	ath9k_hw_set_def_power_per_rate_table(ah, chan,
 					       &ratesArray[0], cfgCtl,
 					       twiceAntennaReduction,
-					       twiceMaxRegulatoryPower,
 					       powerLimit);
 
 	ath9k_hw_set_def_power_cal_table(ah, chan);

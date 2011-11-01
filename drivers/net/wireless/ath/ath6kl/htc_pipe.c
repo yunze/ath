@@ -38,7 +38,7 @@ static void do_send_completion(struct htc_pipe_endpoint *ep,
 	}
 
 	if (ep->ep_callbacks.tx_comp_multi != NULL) {
-		ath6kl_dbg(ATH6KL_DBG_HTC_SEND,
+		ath6kl_dbg(ATH6KL_DBG_HTC,
 			   "%s: calling ep %d, send complete multiple callback"
 			   "(%d pkts)\n", __func__,
 			   ep->id, get_queue_depth(queue_to_indicate));
@@ -62,7 +62,7 @@ static void do_send_completion(struct htc_pipe_endpoint *ep,
 					struct htc_packet, list);
 
 			list_del(&packet->list);
-			ath6kl_dbg(ATH6KL_DBG_HTC_SEND,
+			ath6kl_dbg(ATH6KL_DBG_HTC,
 				   "%s: calling ep %d send complete callback on "
 				   "packet 0x%lX\n", __func__,
 				   ep->id, (unsigned long)(packet));
@@ -111,7 +111,7 @@ static void get_htc_packet_credit_based(struct htc_pipe_target *target,
 		if (packet == NULL)
 			break;
 
-		ath6kl_dbg(ATH6KL_DBG_HTC_SEND,
+		ath6kl_dbg(ATH6KL_DBG_HTC,
 			   "%s: got head packet:0x%lX , queue depth: %d\n",
 			   __func__, (unsigned long)packet,
 			   get_queue_depth(&ep->tx_queue));
@@ -129,7 +129,7 @@ static void get_htc_packet_credit_based(struct htc_pipe_target *target,
 				credits_required++;
 		}
 
-		ath6kl_dbg(ATH6KL_DBG_HTC_SEND, "%s: creds required:%d"
+		ath6kl_dbg(ATH6KL_DBG_HTC, "%s: creds required:%d"
 				"got:%d\n", __func__, credits_required,
 				ep->tx_credits);
 
@@ -153,7 +153,7 @@ static void get_htc_packet_credit_based(struct htc_pipe_target *target,
 				/* tell the target we need credits ASAP! */
 				send_flags |= HTC_FLAGS_NEED_CREDIT_UPDATE;
 				ep->ep_st.cred_low_indicate += 1;
-				ath6kl_dbg(ATH6KL_DBG_HTC_SEND,
+				ath6kl_dbg(ATH6KL_DBG_HTC,
 					"%s: host needs credits\n", __func__);
 			}
 		}
@@ -193,7 +193,7 @@ static void get_htc_packet(struct htc_pipe_target *target,
 					struct htc_packet, list);
 		list_del(&packet->list);
 
-		ath6kl_dbg(ATH6KL_DBG_HTC_SEND,
+		ath6kl_dbg(ATH6KL_DBG_HTC,
 			   "%s: got packet:0x%lX , new queue depth: %d\n",
 			   __func__, (unsigned long)packet,
 			   get_queue_depth(&ep->tx_queue));
@@ -218,7 +218,7 @@ static int htc_issue_packets(struct htc_pipe_target *target,
 	struct htc_frame_hdr *htc_hdr;
 	struct htc_packet *packet;
 
-	ath6kl_dbg(ATH6KL_DBG_HTC_SEND,
+	ath6kl_dbg(ATH6KL_DBG_HTC,
 		   "%s: queue: 0x%lX, pkts %d\n", __func__,
 		   (unsigned long)pkt_queue, get_queue_depth(pkt_queue));
 
@@ -313,7 +313,7 @@ static enum htc_send_queue_result htc_try_send(struct htc_pipe_target *target,
 	int tx_resources;
 	int overflow, txqueue_depth;
 
-	ath6kl_dbg(ATH6KL_DBG_HTC_SEND,
+	ath6kl_dbg(ATH6KL_DBG_HTC,
 		   "%s: (queue:0x%lX depth:%d)\n",
 		   __func__, (unsigned long)callers_send_queue,
 		   (callers_send_queue ==
@@ -349,7 +349,7 @@ static enum htc_send_queue_result htc_try_send(struct htc_pipe_target *target,
 
 		/* if overflow is negative or zero, we are okay */
 		if (overflow > 0) {
-			ath6kl_dbg(ATH6KL_DBG_HTC_SEND,
+			ath6kl_dbg(ATH6KL_DBG_HTC,
 				   "%s: Endpoint %d, TX queue will overflow :%d, "
 				   "Tx Depth:%d, Max:%d\n", __func__,
 				   ep->id, overflow, txqueue_depth,
@@ -393,7 +393,7 @@ static enum htc_send_queue_result htc_try_send(struct htc_pipe_target *target,
 			list_for_each_entry_safe(packet, tmp_pkt,
 						 callers_send_queue, list) {
 
-				ath6kl_dbg(ATH6KL_DBG_HTC_SEND,
+				ath6kl_dbg(ATH6KL_DBG_HTC,
 					   "%s: Indicat overflowed TX pkts: %lX\n",
 					   __func__, (unsigned long)packet);
 				if (ep->ep_callbacks.
@@ -529,7 +529,7 @@ static void htc_tx_resource_available(struct htc_target *context, u8 pipeid)
 		return;
 	}
 
-	ath6kl_dbg(ATH6KL_DBG_HTC_SEND,
+	ath6kl_dbg(ATH6KL_DBG_HTC,
 		   "%s: hIF indicated more resources for pipe:%d\n",
 		   __func__, pipeid);
 
@@ -731,7 +731,7 @@ static void htc_process_credit_report(struct htc_pipe_target *target,
 
 		total_credits += rpt->credits;
 	}
-	ath6kl_dbg(ATH6KL_DBG_HTC_SEND,
+	ath6kl_dbg(ATH6KL_DBG_HTC,
 		   "  Report indicated %d credits to distribute\n",
 		   total_credits);
 
@@ -1043,7 +1043,7 @@ static int htc_rx_completion(struct htc_target *context,
 	payload_len = le16_to_cpu(get_unaligned(&htc_hdr->payld_len));
 
 	if (netlen < (payload_len + HTC_HDR_LENGTH)) {
-		ath6kl_dbg(ATH6KL_DBG_HTC_RECV,
+		ath6kl_dbg(ATH6KL_DBG_HTC,
 			   "HTC Rx: insufficient length, got:%d expected =%d\n",
 			   netlen, payload_len + HTC_HDR_LENGTH);
 		status = -EINVAL;
@@ -1057,7 +1057,7 @@ static int htc_rx_completion(struct htc_target *context,
 		hdr_info = htc_hdr->ctrl[0];
 		if ((hdr_info < sizeof(struct htc_record_hdr))
 		    || (hdr_info > payload_len)) {
-			ath6kl_dbg(ATH6KL_DBG_HTC_RECV,
+			ath6kl_dbg(ATH6KL_DBG_HTC,
 				   "invalid header: payloadlen"
 				   "should be %d, CB[0]: %d\n",
 				   payload_len, hdr_info);
@@ -1170,7 +1170,7 @@ void htc_flush_rx_queue(struct htc_pipe_target *target,
 		spin_unlock_bh(&target->htc_rxlock);
 		packet->status = -ECANCELED;
 		packet->act_len = 0;
-		ath6kl_dbg(ATH6KL_DBG_HTC_RECV,
+		ath6kl_dbg(ATH6KL_DBG_HTC,
 			   "  Flushing RX packet:0x%lX, length:%d, ep:%d\n",
 			   (unsigned long)packet, packet->buf_len,
 			   packet->endpoint);
@@ -1628,7 +1628,7 @@ int ath6kl_htc_get_rxbuf_num(struct htc_target *htc_context,
 int ath6kl_htc_tx(struct htc_target *handle, struct htc_packet *packet)
 {
 	struct list_head queue;
-	ath6kl_dbg(ATH6KL_DBG_HTC_SEND,
+	ath6kl_dbg(ATH6KL_DBG_HTC,
 		   "%s: endPointId: %d, buffer: 0x%lX, length: %d\n",
 		   __func__, packet->endpoint,
 		   (unsigned long)packet->buf,
@@ -1739,7 +1739,7 @@ int ath6kl_htc_add_rxbuf_multiple(struct htc_target *handle,
 		return -EINVAL;
 	}
 
-	ath6kl_dbg(ATH6KL_DBG_HTC_RECV,
+	ath6kl_dbg(ATH6KL_DBG_HTC,
 		   "%s: epid: %d, cnt:%d, len: %d\n",
 		   __func__, pFirstPacket->endpoint,
 		   get_queue_depth(pkt_queue), pFirstPacket->buf_len);
@@ -1784,7 +1784,7 @@ void ath6kl_htc_flush_rx_buf(struct htc_target *target)
 }
 
 void ath6kl_htc_set_credit_dist(struct htc_target *target,
-			 struct htc_credit_state_info *cred_info,
+			 struct ath6kl_htc_credit_info *cred_info,
 			 u16 svc_pri_order[], int len)
 {
 	/*
@@ -1792,3 +1792,10 @@ void ath6kl_htc_set_credit_dist(struct htc_target *target,
 	 * based flow control mechanism
 	 */
 }
+
+int ath6kl_credit_setup(void *htc_handle,
+			struct ath6kl_htc_credit_info *cred_info)
+{
+	return 0;
+}
+

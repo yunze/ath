@@ -618,7 +618,7 @@ static void hif_usb_device_detached(struct usb_interface *interface,
 
 	/* inform upper layer if it is still interested */
 	if (surprise_removed && device->claimed_context != NULL)
-		ath6kl_unavail_ev(device->claimed_context);
+		ath6kl_core_cleanup(device->claimed_context);
 
 	hif_usb_destroy(device);
 }
@@ -947,7 +947,7 @@ static int ath6kl_usb_write_reg_diag(struct ath6kl *ar, u32 address, u32 * data)
 					 USB_CONTROL_REQ_DIAG_CMD,
 					 (u8 *) cmd,
 					 sizeof(struct usb_ctrl_diag_cmd_write),
-					 0, NULL, 0);
+					 0, NULL, NULL);
 
 }
 
@@ -1003,8 +1003,8 @@ static int ath6kl_usb_probe(struct usb_interface *interface,
 	int result = 0;
 
 	usb_get_dev(dev);
-	vendor_id = dev->descriptor.idVendor;
-	product_id = dev->descriptor.idProduct;
+	vendor_id = le16_to_cpu(dev->descriptor.idVendor);
+	product_id = le16_to_cpu(dev->descriptor.idProduct);
 
 	ath6kl_dbg(ATH6KL_DBG_USB, "vendor_id = %04x\n", vendor_id);
 	ath6kl_dbg(ATH6KL_DBG_USB, "product_id = %04x\n", product_id);
@@ -1042,7 +1042,7 @@ static int ath6kl_usb_probe(struct usb_interface *interface,
 	result = ath6kl_core_init(ar);
 
 	if (result) {
-		ath6kl_cfg80211_deinit(ar);
+		ath6kl_core_free(ar);
 		ath6kl_err("Failed to init ath6kl core\n");
 		goto err_ath6kl_core;
 	}
@@ -1106,13 +1106,13 @@ static struct usb_driver ath6kl_usb_driver = {
 	.supports_autosuspend = true,
 };
 
-int ath6kl_usb_init(void)
+static int ath6kl_usb_init(void)
 {
 	usb_register(&ath6kl_usb_driver);
 	return 0;
 }
 
-void ath6kl_usb_exit(void)
+static void ath6kl_usb_exit(void)
 {
 	usb_deregister(&ath6kl_usb_driver);
 }
