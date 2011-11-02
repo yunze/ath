@@ -241,14 +241,7 @@ int ath6kl_diag_read32(struct ath6kl *ar, u32 address, u32 *value)
 {
 	int ret;
 
-	/* set window register to start read cycle */
-	ret = ath6kl_set_addrwin_reg(ar, WINDOW_READ_ADDR_ADDRESS, address);
-	if (ret)
-		return ret;
-
-	/* read the data */
-	ret = hif_read_write_sync(ar, WINDOW_DATA_ADDRESS, (u8 *) value,
-				  sizeof(*value), HIF_RD_SYNC_BYTE_INC);
+	ret = ath6kl_hif_read_diag(ar, address, value);
 	if (ret) {
 		ath6kl_warn("failed to read32 through diagnose window: %d\n",
 			    ret);
@@ -266,18 +259,15 @@ int ath6kl_diag_write32(struct ath6kl *ar, u32 address, __le32 value)
 {
 	int ret;
 
-	/* set write data */
-	ret = hif_read_write_sync(ar, WINDOW_DATA_ADDRESS, (u8 *) &value,
-				  sizeof(value), HIF_WR_SYNC_BYTE_INC);
+	ret = ath6kl_hif_write_diag(ar, address, value);
+
 	if (ret) {
 		ath6kl_err("failed to write 0x%x during diagnose window to 0x%d\n",
 			   address, value);
 		return ret;
 	}
 
-	/* set window register, which starts the write cycle */
-	return ath6kl_set_addrwin_reg(ar, WINDOW_WRITE_ADDR_ADDRESS,
-				      address);
+	return 0;
 }
 
 int ath6kl_diag_read(struct ath6kl *ar, u32 address, void *data, u32 length)

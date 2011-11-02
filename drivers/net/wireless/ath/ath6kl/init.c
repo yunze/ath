@@ -1165,6 +1165,8 @@ static int ath6kl_upload_firmware(struct ath6kl *ar)
 		return ret;
 	}
 
+	printk("firmware upload done\n");
+
 	/*
 	 * Set starting address for firmware
 	 * Don't need to setup app_start override addr on AR6004

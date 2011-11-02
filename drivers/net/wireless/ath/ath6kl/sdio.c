@@ -854,7 +854,7 @@ static int ath6kl_sdio_read_reg_diag(struct ath6kl *ar, u32 address,
 }
 
 static int ath6kl_sdio_write_reg_diag(struct ath6kl *ar, u32 address,
-			u32 *data)
+				      __le32 data)
 {
 	int status;
 
@@ -863,7 +863,7 @@ static int ath6kl_sdio_write_reg_diag(struct ath6kl *ar, u32 address,
 				(u8 *)data, sizeof(u32), HIF_WR_SYNC_BYTE_INC);
 	if (status) {
 		ath6kl_err("%s: failed to write 0x%x to window data addr\n",
-			   __func__, *data);
+			   __func__, data);
 		return status;
 	}
 
