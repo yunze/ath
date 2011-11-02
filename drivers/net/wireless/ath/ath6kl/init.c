@@ -1007,7 +1007,11 @@ static int ath6kl_upload_board_file(struct ath6kl *ar)
 	 * writing board data.
 	 */
 	if (ar->target_type == TARGET_TYPE_AR6004) {
-		board_address = AR6004_REV1_BOARD_DATA_ADDRESS;
+		if (ar->version.target_ver == AR6004_REV1_VERSION)
+			board_address = AR6004_REV1_BOARD_DATA_ADDRESS;
+		else
+			board_address = AR6004_REV2_BOARD_DATA_ADDRESS;
+
 		ath6kl_bmi_write(ar,
 				ath6kl_get_hi_item_addr(ar,
 				HI_ITEM(hi_board_data)),
@@ -1018,6 +1022,9 @@ static int ath6kl_upload_board_file(struct ath6kl *ar)
 				HI_ITEM(hi_board_data)),
 				(u8 *) &board_address, 4);
 	}
+
+	ath6kl_dbg(ATH6KL_DBG_BOOT, "board data download addr: 0x%x\n",
+		   board_address);
 
 	/* determine where in target ram to write extended board data */
 	ath6kl_bmi_read(ar,
@@ -1046,8 +1053,8 @@ static int ath6kl_upload_board_file(struct ath6kl *ar)
 		break;
 	}
 
-	if (ar->fw_board_len == (board_data_size +
-				 board_ext_data_size)) {
+	if (board_ext_address &&
+	    ar->fw_board_len == (board_data_size + board_ext_data_size)) {
 
 		/* write extended board data */
 		ath6kl_dbg(ATH6KL_DBG_BOOT,
