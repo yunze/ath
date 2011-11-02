@@ -105,7 +105,7 @@ static inline int ath6kl_hif_read_diag(struct ath6kl *ar, u32 address,
  * the Target is required for this.
  */
 static inline int ath6kl_hif_write_diag(struct ath6kl *ar, u32 address,
-					u32 *data)
+					__le32 data)
 {
 	return ar->hif_ops->write_reg_diag(ar, address, data);
 }

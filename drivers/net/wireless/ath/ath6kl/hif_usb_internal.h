@@ -116,19 +116,19 @@ struct hif_urb_context {
 #define USB_CTRL_DIAG_CC_WRITE              1
 
 struct usb_ctrl_diag_cmd_write {
-	u32 cmd;
-	u32 address;
-	u32 value;
-	u32 _pad[1];
+	__le32 cmd;
+	__le32 address;
+	__le32 value;
+	__le32 _pad[1];
 } __packed;
 
 struct usb_ctrl_diag_cmd_read {
-	u32 cmd;
-	u32 address;
+	__le32 cmd;
+	__le32 address;
 } __packed;
 
 struct usb_ctrl_diag_resp_read {
-	u32 value;
+	__le32 value;
 } __packed;
 
 #define USB_CTRL_MAX_DIAG_CMD_SIZE  (sizeof(struct usb_ctrl_diag_cmd_write))

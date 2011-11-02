@@ -941,7 +941,7 @@ static int ath6kl_usb_write_reg_diag(struct ath6kl *ar, u32 address, __le32 data
 	memset(cmd, 0, sizeof(struct usb_ctrl_diag_cmd_write));
 	cmd->cmd = USB_CTRL_DIAG_CC_WRITE;
 	cmd->address = address;
-	cmd->value = data;
+	cmd->value = (__force unsigned ) data;
 
 	return hif_usb_ctrl_msg_exchange(device,
 					 USB_CONTROL_REQ_DIAG_CMD,

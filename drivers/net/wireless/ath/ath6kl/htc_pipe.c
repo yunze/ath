@@ -1152,7 +1152,7 @@ free_netbuf:
 
 }
 
-void htc_flush_rx_queue(struct htc_pipe_target *target,
+static void htc_flush_rx_queue(struct htc_pipe_target *target,
 			struct htc_pipe_endpoint *ep)
 {
 	struct htc_packet *packet;
@@ -1185,7 +1185,7 @@ void htc_flush_rx_queue(struct htc_pipe_target *target,
 }
 
 /* polling routine to wait for a control packet to be received */
-int htc_wait_recv_ctrl_message(struct htc_pipe_target *target)
+static int htc_wait_recv_ctrl_message(struct htc_pipe_target *target)
 {
 	int count = HTC_TARGET_MAX_RESPONSE_POLL;
 
@@ -1217,7 +1217,7 @@ int htc_wait_recv_ctrl_message(struct htc_pipe_target *target)
 	return 0;
 }
 
-void htc_rxctrl_complete(struct htc_target *context, struct htc_packet *packet)
+static void htc_rxctrl_complete(struct htc_target *context, struct htc_packet *packet)
 {
 	/* TODO, can't really receive HTC control messages yet.... */
 	ath6kl_dbg(ATH6KL_DBG_HTC_PIPE, "%s: invalid call function\n",
@@ -1251,7 +1251,7 @@ static int htc_config_target_hif_pipe(struct htc_pipe_target *target)
 }
 
 /* htc service functions */
-u8 htc_get_credit_alloc(struct htc_pipe_target *target, u16 service_id)
+static u8 htc_get_credit_alloc(struct htc_pipe_target *target, u16 service_id)
 {
 	u8 allocation = 0;
 	int i;
@@ -1333,13 +1333,13 @@ int ath6kl_htc_conn_service(struct htc_target *handle,
 
 		memset(conn_msg, 0,
 		       sizeof(struct htc_conn_service_msg));
-		conn_msg->msg_id = HTC_MSG_CONN_SVC_ID;
-		conn_msg->svc_id = conn_req->svc_id;
+		conn_msg->msg_id = cpu_to_le16(HTC_MSG_CONN_SVC_ID);
+		conn_msg->svc_id = cpu_to_le16(conn_req->svc_id);
 		conn_msg->conn_flags =
-		    conn_req->conn_flags & ~HTC_SET_RECV_ALLOC_MASK;
+			cpu_to_le16(conn_req->conn_flags & ~HTC_SET_RECV_ALLOC_MASK);
 		/* tell target desired recv alloc for this ep */
 		conn_msg->conn_flags |=
-			tx_alloc << HTC_SET_RECV_ALLOC_SHIFT;
+			cpu_to_le16(tx_alloc << HTC_SET_RECV_ALLOC_SHIFT);
 
 		if (conn_req->conn_flags &
 		    HTC_CONN_FLGS_DISABLE_CRED_FLOW_CTRL) {
@@ -1367,7 +1367,7 @@ int ath6kl_htc_conn_service(struct htc_target *handle,
 		resp_msg = (struct htc_conn_service_resp *)
 		    target->ctrl_response_buf;
 
-		if ((resp_msg->msg_id != HTC_MSG_CONN_SVC_RESP_ID)
+		if ((resp_msg->msg_id != cpu_to_le16(HTC_MSG_CONN_SVC_RESP_ID))
 		    || (target->ctrl_response_len <
 			sizeof(struct htc_conn_service_resp))) {
 			/* this message is not valid */
@@ -1394,7 +1394,7 @@ int ath6kl_htc_conn_service(struct htc_target *handle,
 		}
 
 		assigned_epid = (enum htc_endpoint_id)resp_msg->eid;
-		max_msg_size = resp_msg->max_msg_sz;
+		max_msg_size = le16_to_cpu(resp_msg->max_msg_sz);
 
 		/* done processing response buffer */
 		target->ctrl_response_processing = false;
@@ -1574,13 +1574,13 @@ int ath6kl_htc_start(struct htc_target *handle)
 	    (struct htc_setup_comp_ext_msg *)skb_put(netbuf,
 				sizeof(struct htc_setup_comp_ext_msg));
 	memset(setup_comp, 0, sizeof(struct htc_setup_comp_ext_msg));
-	setup_comp->msg_id = HTC_MSG_SETUP_COMPLETE_EX_ID;
+	setup_comp->msg_id = cpu_to_le16(HTC_MSG_SETUP_COMPLETE_EX_ID);
 
 	if (0) {
 		ath6kl_dbg(ATH6KL_DBG_HTC_PIPE,
 			   "HTC will not use TX credit flow control\n");
 		setup_comp->flags |=
-		    HTC_SETUP_COMPLETE_FLAGS_DISABLE_TX_CREDIT_FLOW;
+			cpu_to_le32(HTC_SETUP_COMPLETE_FLAGS_DISABLE_TX_CREDIT_FLOW);
 	} else {
 		ath6kl_dbg(ATH6KL_DBG_HTC_PIPE,
 			   "HTC using TX credit flow control\n");
@@ -1663,7 +1663,7 @@ int ath6kl_htc_wait_target(struct htc_target *handle)
 	ready_msg =
 	    (struct htc_ready_ext_msg *)target->ctrl_response_buf;
 
-	if (ready_msg->ver2_0_info.msg_id != HTC_MSG_READY_ID) {
+	if (ready_msg->ver2_0_info.msg_id != cpu_to_le16(HTC_MSG_READY_ID)) {
 		ath6kl_dbg(ATH6KL_DBG_HTC_PIPE,
 			   "invalid htc ready msg : 0x%X !\n",
 			   ready_msg->ver2_0_info.msg_id);
@@ -1676,9 +1676,9 @@ int ath6kl_htc_wait_target(struct htc_target *handle)
 		   ready_msg->ver2_0_info.cred_sz);
 
 	target->total_transmit_credits =
-	    ready_msg->ver2_0_info.cred_cnt;
+		le16_to_cpu(ready_msg->ver2_0_info.cred_cnt);
 	target->target_credit_size =
-	    (int)ready_msg->ver2_0_info.cred_sz;
+		le16_to_cpu(ready_msg->ver2_0_info.cred_sz);
 	if ((target->total_transmit_credits == 0)
 	    || (target->target_credit_size == 0)) {
 		return -ECOMM;
