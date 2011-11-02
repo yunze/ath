@@ -192,8 +192,8 @@ int ath6kl_bmi_write(struct ath6kl *ar, u32 addr, u8 *buf, u32 len)
 	const u32 header = sizeof(cid) + sizeof(addr) + sizeof(len);
 	u32 max_data_sz = ath6kl_bmi_get_max_data_size(ar);
 	u32 max_cmd_sz = ath6kl_bmi_get_max_cmd_size(ar);
-	/* u8 aligned_buf[max_data_sz]; FIXKVALO */
-	u8 aligned_buf[200];
+	/* u8 aligned_buf[max_data_sz]; FIXMEKVALO */
+	u8 aligned_buf[500];
 	u8 *src;
 
 	if (ar->bmi.done_sent) {
