@@ -472,10 +472,10 @@ enum htc_send_full_action ath6kl_tx_queue_full(struct htc_target *target,
 
 stop_adhoc_netq:
 	/* FIXME: Locking */
-	spin_lock(&ar->list_lock);
+	spin_lock_bh(&ar->list_lock);
 	list_for_each_entry(vif, &ar->vif_list, list) {
 		if (vif->nw_type == ADHOC_NETWORK) {
-			spin_unlock(&ar->list_lock);
+			spin_unlock_bh(&ar->list_lock);
 
 			spin_lock_bh(&vif->if_lock);
 			set_bit(NETQ_STOPPED, &vif->flags);
@@ -485,7 +485,7 @@ stop_adhoc_netq:
 			return action;
 		}
 	}
-	spin_unlock(&ar->list_lock);
+	spin_unlock_bh(&ar->list_lock);
 
 	return action;
 }
@@ -640,16 +640,16 @@ void ath6kl_tx_complete(struct htc_target *target,
 	__skb_queue_purge(&skb_queue);
 
 	/* FIXME: Locking */
-	spin_lock(&ar->list_lock);
+	spin_lock_bh(&ar->list_lock);
 	list_for_each_entry(vif, &ar->vif_list, list) {
 		if (test_bit(CONNECTED, &vif->flags) &&
 		    !flushing[vif->fw_vif_idx]) {
-			spin_unlock(&ar->list_lock);
+			spin_unlock_bh(&ar->list_lock);
 			netif_wake_queue(vif->ndev);
-			spin_lock(&ar->list_lock);
+			spin_lock_bh(&ar->list_lock);
 		}
 	}
-	spin_unlock(&ar->list_lock);
+	spin_unlock_bh(&ar->list_lock);
 
 	if (wake_event)
 		wake_up(&ar->event_wq);
