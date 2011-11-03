@@ -269,7 +269,7 @@ static int htc_issue_packets(struct htc_pipe_target *target,
 				 * resources in the HIF layer.
 				 * Don't emit the error
 				 */
-				ath6kl_dbg(ATH6KL_DBG_HTC_PIPE,
+				ath6kl_dbg(ATH6KL_DBG_HTC,
 					   "%s: failed status:%d\n",
 					   __func__, status);
 			}
@@ -288,7 +288,7 @@ static int htc_issue_packets(struct htc_pipe_target *target,
 	if (status != 0) {
 		while (!list_empty(pkt_queue)) {
 			if (status != -ENOMEM) {
-				ath6kl_dbg(ATH6KL_DBG_HTC_PIPE,
+				ath6kl_dbg(ATH6KL_DBG_HTC,
 					   "%s: failed pkt:0x%p status:%d\n",
 					   __func__, packet, status);
 			}
@@ -523,7 +523,7 @@ static void htc_tx_resource_available(struct htc_target *context, u8 pipeid)
 	}
 
 	if (i >= ENDPOINT_MAX) {
-		ath6kl_dbg(ATH6KL_DBG_HTC_PIPE,
+		ath6kl_dbg(ATH6KL_DBG_HTC,
 			   "Invalid pipe indicated for TX resource avail : %d!\n",
 			   pipeid);
 		return;
@@ -611,7 +611,7 @@ static int htc_setup_target_buffer_assignments(struct htc_pipe_target *target)
 	status = -ENOMEM;
 
 	if (hif_usbaudioclass) {
-		ath6kl_dbg(ATH6KL_DBG_HTC_PIPE,
+		ath6kl_dbg(ATH6KL_DBG_HTC,
 			   "htc_setup_target_buffer_assignments "
 			   "For USB Audio Class- Total:%d\n", credits);
 		entry++;
@@ -682,11 +682,11 @@ static int htc_setup_target_buffer_assignments(struct htc_pipe_target *target)
 	}
 
 	if (status == 0) {
-		if (AR_DBG_LVL_CHECK(ATH6KL_DBG_HTC_PIPE)) {
+		if (AR_DBG_LVL_CHECK(ATH6KL_DBG_HTC)) {
 			int i;
 			for (i = 0; i < HTC_MAX_SERVICE_ALLOC_ENTRIES; i++) {
 				if (target->txcredit_alloc[i].service_id != 0) {
-					ath6kl_dbg(ATH6KL_DBG_HTC_PIPE,
+					ath6kl_dbg(ATH6KL_DBG_HTC,
 						   "HTC Service Index : %d TX : 0x%2.2X :"
 						   "alloc:%d\n", i,
 						   target->txcredit_alloc[i].
@@ -936,7 +936,7 @@ static int htc_process_trailer(struct htc_pipe_target *target,
 
 		if (record->len > len) {
 			/* no room left in buffer for record */
-			ath6kl_dbg(ATH6KL_DBG_HTC_PIPE,
+			ath6kl_dbg(ATH6KL_DBG_HTC,
 				   " invalid length: %d (id:%d) buffer has: %d bytes left\n",
 				   record->len, record->rec_id, len);
 			status = -EINVAL;
@@ -962,7 +962,7 @@ static int htc_process_trailer(struct htc_pipe_target *target,
 						  from_ep);
 			break;
 		default:
-			ath6kl_dbg(ATH6KL_DBG_HTC_PIPE,
+			ath6kl_dbg(ATH6KL_DBG_HTC,
 				   " unhandled record: id:%d length:%d\n",
 				   record->rec_id, record->len);
 			break;
@@ -1033,7 +1033,7 @@ static int htc_rx_completion(struct htc_target *context,
 	ep = &target->endpoint[htc_hdr->eid];
 
 	if (htc_hdr->eid >= ENDPOINT_MAX) {
-		ath6kl_dbg(ATH6KL_DBG_HTC_PIPE,
+		ath6kl_dbg(ATH6KL_DBG_HTC,
 			   "HTC Rx: invalid EndpointID=%d\n",
 			   htc_hdr->eid);
 		status = -EINVAL;
@@ -1089,7 +1089,7 @@ static int htc_rx_completion(struct htc_target *context,
 			 * fatal: target should not send unsolicited
 			 * messageson the endpoint 0
 			 */
-			ath6kl_dbg(ATH6KL_DBG_HTC_PIPE,
+			ath6kl_dbg(ATH6KL_DBG_HTC,
 				   "HTC Rx Ctrl still processing\n");
 			status = -EINVAL;
 			goto free_netbuf;
@@ -1209,7 +1209,7 @@ static int htc_wait_recv_ctrl_message(struct htc_pipe_target *target)
 		set_current_state(TASK_RUNNING);
 	}
 	if (count <= 0) {
-		ath6kl_dbg(ATH6KL_DBG_HTC_PIPE,
+		ath6kl_dbg(ATH6KL_DBG_HTC,
 			   "%s: Timeout!\n", __func__);
 		return -ECOMM;
 	}
@@ -1220,7 +1220,7 @@ static int htc_wait_recv_ctrl_message(struct htc_pipe_target *target)
 static void htc_rxctrl_complete(struct htc_target *context, struct htc_packet *packet)
 {
 	/* TODO, can't really receive HTC control messages yet.... */
-	ath6kl_dbg(ATH6KL_DBG_HTC_PIPE, "%s: invalid call function\n",
+	ath6kl_dbg(ATH6KL_DBG_HTC, "%s: invalid call function\n",
 			__func__);
 }
 
@@ -1262,7 +1262,7 @@ static u8 htc_get_credit_alloc(struct htc_pipe_target *target, u16 service_id)
 	}
 
 	if (allocation == 0) {
-		ath6kl_dbg(ATH6KL_DBG_HTC_PIPE,
+		ath6kl_dbg(ATH6KL_DBG_HTC,
 			   "HTC Service TX : 0x%2.2X : allocation is zero!\n",
 			   service_id);
 	}
@@ -1385,7 +1385,7 @@ int ath6kl_htc_conn_service(struct htc_target *handle,
 		conn_resp->resp_code = resp_msg->status;
 		/* check response status */
 		if (resp_msg->status != HTC_SERVICE_SUCCESS) {
-			ath6kl_dbg(ATH6KL_DBG_HTC_PIPE,
+			ath6kl_dbg(ATH6KL_DBG_HTC,
 				   " Target failed service 0x%X connect"
 				   " request (status:%d)\n",
 				   resp_msg->svc_id, resp_msg->status);
@@ -1446,14 +1446,14 @@ int ath6kl_htc_conn_service(struct htc_target *handle,
 	if (status != 0)
 		goto free_packet;
 
-	ath6kl_dbg(ATH6KL_DBG_HTC_PIPE,
+	ath6kl_dbg(ATH6KL_DBG_HTC,
 		   "SVC Ready: 0x%4.4X: ULpipe:%d DLpipe:%d id:%d\n",
 		   ep->service_id, ep->pipeid_ul,
 		   ep->pipeid_dl, ep->id);
 
 	if (disable_credit_flowctrl && ep->tx_credit_flow_enabled) {
 		ep->tx_credit_flow_enabled = false;
-		ath6kl_dbg(ATH6KL_DBG_HTC_PIPE,
+		ath6kl_dbg(ATH6KL_DBG_HTC,
 			   "SVC: 0x%4.4X ep:%d TX flow control off\n",
 			   ep->service_id, assigned_epid);
 	}
@@ -1577,12 +1577,12 @@ int ath6kl_htc_start(struct htc_target *handle)
 	setup_comp->msg_id = cpu_to_le16(HTC_MSG_SETUP_COMPLETE_EX_ID);
 
 	if (0) {
-		ath6kl_dbg(ATH6KL_DBG_HTC_PIPE,
+		ath6kl_dbg(ATH6KL_DBG_HTC,
 			   "HTC will not use TX credit flow control\n");
 		setup_comp->flags |=
 			cpu_to_le32(HTC_SETUP_COMPLETE_FLAGS_DISABLE_TX_CREDIT_FLOW);
 	} else {
-		ath6kl_dbg(ATH6KL_DBG_HTC_PIPE,
+		ath6kl_dbg(ATH6KL_DBG_HTC,
 			   "HTC using TX credit flow control\n");
 	}
 
@@ -1655,7 +1655,7 @@ int ath6kl_htc_wait_target(struct htc_target *handle)
 
 	if (target->ctrl_response_len <
 	    (sizeof(struct htc_ready_ext_msg))) {
-		ath6kl_dbg(ATH6KL_DBG_HTC_PIPE,
+		ath6kl_dbg(ATH6KL_DBG_HTC,
 			   "invalid htc ready msg len:%d!\n",
 			   target->ctrl_response_len);
 		return -ECOMM;
@@ -1664,13 +1664,13 @@ int ath6kl_htc_wait_target(struct htc_target *handle)
 	    (struct htc_ready_ext_msg *)target->ctrl_response_buf;
 
 	if (ready_msg->ver2_0_info.msg_id != cpu_to_le16(HTC_MSG_READY_ID)) {
-		ath6kl_dbg(ATH6KL_DBG_HTC_PIPE,
+		ath6kl_dbg(ATH6KL_DBG_HTC,
 			   "invalid htc ready msg : 0x%X !\n",
 			   ready_msg->ver2_0_info.msg_id);
 		return -ECOMM;
 	}
 
-	ath6kl_dbg(ATH6KL_DBG_HTC_PIPE,
+	ath6kl_dbg(ATH6KL_DBG_HTC,
 		   "Target Ready! : transmit resources : %d size:%d\n",
 		   ready_msg->ver2_0_info.cred_cnt,
 		   ready_msg->ver2_0_info.cred_sz);

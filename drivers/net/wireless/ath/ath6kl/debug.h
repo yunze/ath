@@ -42,7 +42,6 @@ enum ATH6K_DEBUG_MASK {
 	ATH6KL_DBG_WMI_DUMP	= BIT(19),
 	ATH6KL_DBG_USB		= BIT(21),    /* USB hif tracing */
 	ATH6KL_DBG_USB_BULK	= BIT(22),    /* USB hif bulk*/
-	ATH6KL_DBG_HTC_PIPE	= BIT(23),    /* USB htc tracing */
 	ATH6KL_DBG_ANY		= 0xffffffff  /* enable all logs */
 };
 
