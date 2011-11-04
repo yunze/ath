@@ -59,10 +59,10 @@ int ath6kl_bmi_get_target_info(struct ath6kl *ar,
 
 	if (ar->hif_type == ATH6KL_HIF_TYPE_USB) {
 		ret = ath6kl_hif_bmi_read(ar, (u8 *)targ_info,
-				sizeof(struct ath6kl_bmi_target_info), true);
+				sizeof(struct ath6kl_bmi_target_info));
 	} else {
 		ret = ath6kl_hif_bmi_read(ar, (u8 *)&targ_info->version,
-				sizeof(targ_info->version), true);
+				sizeof(targ_info->version));
 	}
 
 	if (ret) {
@@ -74,8 +74,7 @@ int ath6kl_bmi_get_target_info(struct ath6kl *ar,
 		/* Determine how many bytes are in the Target's targ_info */
 		ret = ath6kl_hif_bmi_read(ar,
 					      (u8 *)&targ_info->byte_count,
-					      sizeof(targ_info->byte_count),
-					      true);
+					      sizeof(targ_info->byte_count));
 		if (ret) {
 			ath6kl_err("unable to read target info byte count: %d\n",
 				   ret);
@@ -96,8 +95,7 @@ int ath6kl_bmi_get_target_info(struct ath6kl *ar,
 					      ((u8 *)targ_info) +
 					      sizeof(targ_info->byte_count),
 					      sizeof(*targ_info) -
-					      sizeof(targ_info->byte_count),
-					      true);
+					      sizeof(targ_info->byte_count));
 
 		if (ret) {
 			ath6kl_err("Unable to read target info (%d bytes): %d\n",
@@ -159,7 +157,7 @@ int ath6kl_bmi_read(struct ath6kl *ar, u32 addr, u8 *buf, u32 len)
 			return ret;
 		}
 		ret = ath6kl_hif_bmi_read(ar, ar->bmi.cmd_buf,
-					rx_len, true);
+					rx_len);
 		if (ret) {
 			ath6kl_err("Unable to read from the device: %d\n",
 				   ret);
@@ -276,8 +274,7 @@ int ath6kl_bmi_execute(struct ath6kl *ar, u32 addr, u32 *param)
 		return ret;
 	}
 
-	ret = ath6kl_hif_bmi_read(ar, ar->bmi.cmd_buf,
-				sizeof(*param), false);
+	ret = ath6kl_hif_bmi_read(ar, ar->bmi.cmd_buf, sizeof(*param));
 	if (ret) {
 		ath6kl_err("Unable to read from the device: %d\n", ret);
 		return ret;
@@ -359,8 +356,7 @@ int ath6kl_bmi_reg_read(struct ath6kl *ar, u32 addr, u32 *param)
 		return ret;
 	}
 
-	ret = ath6kl_hif_bmi_read(ar, ar->bmi.cmd_buf,
-				sizeof(*param), true);
+	ret = ath6kl_hif_bmi_read(ar, ar->bmi.cmd_buf, sizeof(*param));
 	if (ret) {
 		ath6kl_err("Unable to read from the device: %d\n", ret);
 		return ret;

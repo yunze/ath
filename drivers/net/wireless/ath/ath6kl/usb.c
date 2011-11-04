@@ -1029,8 +1029,7 @@ static int ath6kl_usb_diag_write32(struct ath6kl *ar, u32 address, __le32 data)
 
 }
 
-static int ath6kl_usb_bmi_read(struct ath6kl *ar, u8 *buf, u32 len,
-			       bool want_timeout)
+static int ath6kl_usb_bmi_read(struct ath6kl *ar, u8 *buf, u32 len)
 {
 	int status;
 	struct ath6kl_usb *device = (struct ath6kl_usb *)ar->hif_priv;

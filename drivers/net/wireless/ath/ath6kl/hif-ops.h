@@ -110,10 +110,9 @@ static inline int ath6kl_hif_diag_write32(struct ath6kl *ar, u32 address,
 	return ar->hif_ops->diag_write32(ar, address, value);
 }
 
-static inline int ath6kl_hif_bmi_read(struct ath6kl *ar, u8 *buf, u32 len,
-				      bool want_timeout)
+static inline int ath6kl_hif_bmi_read(struct ath6kl *ar, u8 *buf, u32 len)
 {
-	return ar->hif_ops->bmi_read(ar, buf, len, want_timeout);
+	return ar->hif_ops->bmi_read(ar, buf, len);
 }
 
 static inline int ath6kl_hif_bmi_write(struct ath6kl *ar, u8 *buf, u32 len)

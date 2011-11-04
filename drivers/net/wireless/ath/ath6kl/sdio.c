@@ -967,14 +967,14 @@ static int ath6kl_get_bmi_cmd_credits(struct ath6kl *ar)
 	return 0;
 }
 
-static int ath6kl_bmi_get_rx_lkahd(struct ath6kl *ar, bool need_timeout)
+static int ath6kl_bmi_get_rx_lkahd(struct ath6kl *ar)
 {
 	unsigned long timeout;
 	u32 rx_word = 0;
 	int ret = 0;
 
 	timeout = jiffies + msecs_to_jiffies(BMI_COMMUNICATION_TIMEOUT);
-	while ((!need_timeout || time_before(jiffies, timeout)) && !rx_word) {
+	while ((time_before(jiffies, timeout)) && !rx_word) {
 		ret = ath6kl_sdio_read_write_sync(ar,
 					RX_LOOKAHEAD_VALID_ADDRESS,
 					(u8 *)&rx_word, sizeof(rx_word),
@@ -1015,8 +1015,7 @@ static int ath6kl_sdio_bmi_write(struct ath6kl *ar, u8 *buf, u32 len)
 	return ret;
 }
 
-static int ath6kl_sdio_bmi_read(struct ath6kl *ar, u8 *buf, u32 len,
-				bool want_timeout)
+static int ath6kl_sdio_bmi_read(struct ath6kl *ar, u8 *buf, u32 len)
 {
 	int ret;
 	u32 addr;
@@ -1068,7 +1067,7 @@ static int ath6kl_sdio_bmi_read(struct ath6kl *ar, u8 *buf, u32 len,
 	 * a function of Host processor speed.
 	 */
 	if (len >= 4) { /* NB: Currently, always true */
-		ret = ath6kl_bmi_get_rx_lkahd(ar, want_timeout);
+		ret = ath6kl_bmi_get_rx_lkahd(ar);
 		if (ret)
 			return ret;
 	}
