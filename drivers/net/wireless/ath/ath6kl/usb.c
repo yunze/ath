@@ -980,7 +980,7 @@ static int ath6kl_usb_ctrl_msg_exchange(struct ath6kl_usb *device,
 	return status;
 }
 
-static int ath6kl_usb_read_reg_diag(struct ath6kl *ar, u32 address, u32 *data)
+static int ath6kl_usb_diag_read32(struct ath6kl *ar, u32 address, u32 *data)
 {
 	struct ath6kl_usb *device = (struct ath6kl_usb *)ar->hif_priv;
 	int status;
@@ -1011,7 +1011,7 @@ static int ath6kl_usb_read_reg_diag(struct ath6kl *ar, u32 address, u32 *data)
 	return status;
 }
 
-static int ath6kl_usb_write_reg_diag(struct ath6kl *ar, u32 address, __le32 data)
+static int ath6kl_usb_diag_write32(struct ath6kl *ar, u32 address, __le32 data)
 {
 	struct ath6kl_usb *device = (struct ath6kl_usb *)ar->hif_priv;
 	struct usb_ctrl_diag_cmd_write *cmd;
@@ -1021,7 +1021,8 @@ static int ath6kl_usb_write_reg_diag(struct ath6kl *ar, u32 address, __le32 data
 	memset(cmd, 0, sizeof(struct usb_ctrl_diag_cmd_write));
 	cmd->cmd = USB_CTRL_DIAG_CC_WRITE;
 	cmd->address = address;
-	cmd->value = (__force unsigned ) data;
+	/* FIXME: remove __force */
+	cmd->value = (__force unsigned) data;
 
 	return ath6kl_usb_ctrl_msg_exchange(device,
 					 USB_CONTROL_REQ_DIAG_CMD,
@@ -1076,8 +1077,8 @@ static int ath6kl_usb_power_off(struct ath6kl *ar)
 }
 
 static const struct ath6kl_hif_ops ath6kl_usb_ops = {
-	.read_reg_diag = ath6kl_usb_read_reg_diag,
-	.write_reg_diag = ath6kl_usb_write_reg_diag,
+	.diag_read32 = ath6kl_usb_diag_read32,
+	.diag_write32 = ath6kl_usb_diag_write32,
 	.bmi_recv_buf = ath6kl_usb_bmi_recv_buf,
 	.bmi_send_buf = ath6kl_usb_bmi_send_buf,
 	.power_on = ath6kl_usb_power_on,

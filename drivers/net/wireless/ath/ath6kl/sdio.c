@@ -881,8 +881,7 @@ static int ath6kl_sdio_resume(struct ath6kl *ar)
 	return 0;
 }
 
-static int ath6kl_sdio_read_reg_diag(struct ath6kl *ar, u32 address,
-			u32 *data)
+static int ath6kl_sdio_diag_read32(struct ath6kl *ar, u32 address, u32 *data)
 {
 	int status;
 
@@ -905,8 +904,8 @@ static int ath6kl_sdio_read_reg_diag(struct ath6kl *ar, u32 address,
 	return status;
 }
 
-static int ath6kl_sdio_write_reg_diag(struct ath6kl *ar, u32 address,
-				      __le32 data)
+static int ath6kl_sdio_diag_write32(struct ath6kl *ar, u32 address,
+				    __le32 data)
 {
 	int status;
 	u32 val = (__force u32) data;
@@ -1130,8 +1129,8 @@ static const struct ath6kl_hif_ops ath6kl_sdio_ops = {
 	.scat_req_rw = ath6kl_sdio_async_rw_scatter,
 	.cleanup_scatter = ath6kl_sdio_cleanup_scatter,
 	.suspend = ath6kl_sdio_suspend,
-	.read_reg_diag = ath6kl_sdio_read_reg_diag,
-	.write_reg_diag = ath6kl_sdio_write_reg_diag,
+	.diag_read32 = ath6kl_sdio_diag_read32,
+	.diag_write32 = ath6kl_sdio_diag_write32,
 	.bmi_recv_buf = ath6kl_sdio_bmi_recv_buf,
 	.bmi_send_buf = ath6kl_sdio_bmi_send_buf,
 	.resume = ath6kl_sdio_resume,

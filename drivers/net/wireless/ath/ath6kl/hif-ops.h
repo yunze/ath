@@ -94,20 +94,20 @@ static inline int ath6kl_hif_suspend(struct ath6kl *ar)
  * Read from the ATH6KL through its diagnostic window. No cooperation from
  * the Target is required for this.
  */
-static inline int ath6kl_hif_read_diag(struct ath6kl *ar, u32 address,
-					u32 *data)
+static inline int ath6kl_hif_diag_read32(struct ath6kl *ar, u32 address,
+					 u32 *value)
 {
-	return ar->hif_ops->read_reg_diag(ar, address, data);
+	return ar->hif_ops->diag_read32(ar, address, value);
 }
 
 /*
  * Write to the ATH6KL through its diagnostic window. No cooperation from
  * the Target is required for this.
  */
-static inline int ath6kl_hif_write_diag(struct ath6kl *ar, u32 address,
-					__le32 data)
+static inline int ath6kl_hif_diag_write32(struct ath6kl *ar, u32 address,
+					  __le32 value)
 {
-	return ar->hif_ops->write_reg_diag(ar, address, data);
+	return ar->hif_ops->diag_write32(ar, address, value);
 }
 
 static inline int ath6kl_hif_bmi_recv_buf(struct ath6kl *ar,

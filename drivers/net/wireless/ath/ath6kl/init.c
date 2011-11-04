@@ -103,7 +103,7 @@ static int ath6kl_set_host_app_area(struct ath6kl *ar)
 	address = ath6kl_get_hi_item_addr(ar, HI_ITEM(hi_app_host_interest));
 	address = TARG_VTOP(ar->target_type, address);
 
-	if (ath6kl_hif_read_diag(ar, address, &data))
+	if (ath6kl_diag_read32(ar, address, &data))
 		return -EIO;
 
 	address = TARG_VTOP(ar->target_type, data);
