@@ -35,7 +35,6 @@ enum ATH6KL_USB_PIPE_ID {
 	ATH6KL_USB_PIPE_MAX
 };
 
-
 #define ATH6KL_USB_PIPE_INVALID ATH6KL_USB_PIPE_MAX
 
 struct ath6kl_usb_pipe {
@@ -100,19 +99,19 @@ struct ath6kl_urb_context {
 #define ATH6KL_USB_CTRL_DIAG_CC_WRITE              1
 
 struct usb_ctrl_diag_cmd_write {
-	u32 cmd;
-	u32 address;
-	u32 value;
-	u32 _pad[1];
+	__le32 cmd;
+	__le32 address;
+	__le32 value;
+	__le32 _pad[1];
 } __packed;
 
 struct usb_ctrl_diag_cmd_read {
-	u32 cmd;
-	u32 address;
+	__le32 cmd;
+	__le32 address;
 } __packed;
 
 struct usb_ctrl_diag_resp_read {
-	u32 value;
+	__le32 value;
 } __packed;
 
 #define USB_CTRL_MAX_DIAG_CMD_SIZE  (sizeof(struct usb_ctrl_diag_cmd_write))
@@ -990,7 +989,7 @@ static int ath6kl_usb_diag_read32(struct ath6kl *ar, u32 address, u32 *data)
 
 	memset(cmd, 0, sizeof(struct usb_ctrl_diag_cmd_read));
 	cmd->cmd = ATH6KL_USB_CTRL_DIAG_CC_READ;
-	cmd->address = address;
+	cmd->address = cpu_to_le32(address);
 	resp_len = sizeof(struct usb_ctrl_diag_resp_read);
 
 	status = ath6kl_usb_ctrl_msg_exchange(device,
@@ -1004,7 +1003,7 @@ static int ath6kl_usb_diag_read32(struct ath6kl *ar, u32 address, u32 *data)
 	if (status == 0) {
 		struct usb_ctrl_diag_resp_read *pResp =
 		    (struct usb_ctrl_diag_resp_read *)device->diag_resp_buffer;
-		*data = pResp->value;
+		*data = le32_to_cpu(pResp->value);
 	}
 
 	return status;
@@ -1018,10 +1017,9 @@ static int ath6kl_usb_diag_write32(struct ath6kl *ar, u32 address, __le32 data)
 	cmd = (struct usb_ctrl_diag_cmd_write *)device->diag_cmd_buffer;
 
 	memset(cmd, 0, sizeof(struct usb_ctrl_diag_cmd_write));
-	cmd->cmd = ATH6KL_USB_CTRL_DIAG_CC_WRITE;
-	cmd->address = address;
-	/* FIXME: remove __force */
-	cmd->value = (__force unsigned) data;
+	cmd->cmd = cpu_to_le32(ATH6KL_USB_CTRL_DIAG_CC_WRITE);
+	cmd->address = cpu_to_le32(address);
+	cmd->value = data;
 
 	return ath6kl_usb_ctrl_msg_exchange(device,
 					 ATH6KL_USB_CONTROL_REQ_DIAG_CMD,
