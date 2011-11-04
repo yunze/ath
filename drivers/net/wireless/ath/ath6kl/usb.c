@@ -1159,6 +1159,7 @@ static void ath6kl_usb_remove(struct usb_interface *interface)
 }
 
 #ifdef CONFIG_PM
+
 static int ath6kl_usb_suspend(struct usb_interface *interface,
 			      pm_message_t message)
 {
@@ -1192,6 +1193,13 @@ static int ath6kl_usb_reset_resume(struct usb_interface *intf)
 		ath6kl_usb_remove(intf);
 	return 0;
 }
+
+#else
+
+#define ath6kl_usb_suspend NULL
+#define ath6kl_usb_resume NULL
+#define ath6kl_usb_reset_resume NULL
+
 #endif
 
 /* table of devices that work with this driver */
@@ -1205,11 +1213,9 @@ MODULE_DEVICE_TABLE(usb, ath6kl_usb_ids);
 static struct usb_driver ath6kl_usb_driver = {
 	.name = "ath6kl_usb",
 	.probe = ath6kl_usb_probe,
-#ifdef CONFIG_PM
 	.suspend = ath6kl_usb_suspend,
 	.resume = ath6kl_usb_resume,
 	.reset_resume = ath6kl_usb_reset_resume,
-#endif
 	.disconnect = ath6kl_usb_remove,
 	.id_table = ath6kl_usb_ids,
 	.supports_autosuspend = true,
