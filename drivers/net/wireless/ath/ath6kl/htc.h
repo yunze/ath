@@ -317,7 +317,7 @@ struct htc_packet {
 	 * lower layers may optimized the transfer knowing this is
 	 * a network buffer
 	 */
-	struct sk_buff *netbufcontext;
+	struct sk_buff *skb;
 };
 
 enum htc_send_full_action {

@@ -23,8 +23,7 @@
 static inline void restore_tx_packet(struct htc_packet *packet)
 {
 	if (packet->info.tx.flags & HTC_TX_PACKET_FLAG_FIXUP_NETBUF) {
-		skb_pull(packet->netbufcontext,
-			 sizeof(struct htc_frame_hdr));
+		skb_pull(packet->skb, sizeof(struct htc_frame_hdr));
 		packet->info.tx.flags &= ~HTC_TX_PACKET_FLAG_FIXUP_NETBUF;
 	}
 }
@@ -227,7 +226,7 @@ static int htc_issue_packets(struct htc_pipe_target *target,
 					struct htc_packet, list);
 		list_del(&packet->list);
 
-		nbuf = packet->netbufcontext;
+		nbuf = packet->skb;
 		if (!nbuf) {
 			WARN_ON(1);
 			status = -EINVAL;
@@ -540,7 +539,7 @@ static void htc_tx_resource_available(struct htc_target *context, u8 pipeid)
 static void destroy_htc_txctrl_packet(struct htc_packet *packet)
 {
 	struct sk_buff *netbuf;
-	netbuf = (struct sk_buff *) packet->netbufcontext;
+	netbuf = (struct sk_buff *) packet->skb;
 	if (netbuf != NULL)
 		dev_kfree_skb(netbuf);
 
@@ -563,7 +562,7 @@ static struct htc_packet *build_htc_txctrl_packet(void)
 		kfree(packet);
 		return NULL;
 	}
-	packet->netbufcontext = netbuf;
+	packet->skb = netbuf;
 
 	return packet;
 }
@@ -778,7 +777,7 @@ static struct htc_packet *htc_lookup_tx_packet(struct htc_pipe_target *target,
 	 */
 	list_for_each_entry_safe(packet, tmp_pkt, &ep->tx_lookup_queue, list) {
 		/* check for removal */
-		if (netbuf == packet->netbufcontext) {
+		if (netbuf == packet->skb) {
 			/* found it */
 			list_del(&packet->list);
 			found_packet = packet;
@@ -1318,7 +1317,7 @@ int ath6kl_htc_conn_service(struct htc_target *handle,
 			goto free_packet;
 		}
 
-		netbuf = packet->netbufcontext;
+		netbuf = packet->skb;
 		length = sizeof(struct htc_conn_service_msg);
 
 		/* assemble connect service message */
@@ -1568,7 +1567,7 @@ int ath6kl_htc_start(struct htc_target *handle)
 		return -ENOMEM;
 	}
 
-	netbuf = packet->netbufcontext;
+	netbuf = packet->skb;
 	/* assemble setup complete message */
 	setup_comp =
 	    (struct htc_setup_comp_ext_msg *)skb_put(netbuf,
