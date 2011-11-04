@@ -403,9 +403,9 @@ enum ath6kl_vif_state {
 	STATS_UPDATE_PEND,
 };
 
-enum hif_type {
-	HIF_TYPE_SDIO,
-	HIF_TYPE_USB
+enum ath6kl_hif_type {
+	ATH6KL_HIF_TYPE_SDIO,
+	ATH6KL_HIF_TYPE_USB,
 };
 
 struct ath6kl_vif {
@@ -481,7 +481,7 @@ struct ath6kl {
 	int tx_pending[ENDPOINT_MAX];
 	int total_tx_data_pend;
 	struct htc_target *htc_target;
-	enum hif_type hif_type;
+	enum ath6kl_hif_type hif_type;
 	void *hif_priv;
 	struct list_head vif_list;
 	/* Lock to avoid race in vif_list entries among add/del/traverse */

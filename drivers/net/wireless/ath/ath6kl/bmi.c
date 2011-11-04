@@ -21,7 +21,7 @@
 
 static u32 ath6kl_bmi_get_max_data_size(struct ath6kl *ar)
 {
-	return (ar->hif_type == HIF_TYPE_SDIO) ?
+	return (ar->hif_type == ATH6KL_HIF_TYPE_SDIO) ?
 		BMI_SDIO_DATASZ_MAX : BMI_USB_DATASZ_MAX;
 }
 
@@ -68,7 +68,7 @@ int ath6kl_bmi_get_target_info(struct ath6kl *ar,
 		return ret;
 	}
 
-	if (ar->hif_type == HIF_TYPE_USB) {
+	if (ar->hif_type == ATH6KL_HIF_TYPE_USB) {
 		ret = ath6kl_hif_bmi_recv_buf(ar, (u8 *)targ_info,
 				sizeof(struct ath6kl_bmi_target_info), true);
 	} else {
