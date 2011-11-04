@@ -245,9 +245,8 @@ struct ath6kl_hif_ops {
 	int (*suspend)(struct ath6kl *ar);
 	int (*diag_read32)(struct ath6kl *ar, u32 address, u32 *value);
 	int (*diag_write32)(struct ath6kl *ar, u32 address, __le32 value);
-	int (*bmi_recv_buf)(struct ath6kl *ar,
-			u8 *buf, u32 len, bool want_timeout);
-	int (*bmi_send_buf)(struct ath6kl *ar, u8 *buf, u32 len);
+	int (*bmi_read)(struct ath6kl *ar, u8 *buf, u32 len, bool want_timeout);
+	int (*bmi_write)(struct ath6kl *ar, u8 *buf, u32 len);
 	int (*resume)(struct ath6kl *ar);
 	int (*power_on)(struct ath6kl *ar);
 	int (*power_off)(struct ath6kl *ar);

@@ -31,7 +31,7 @@ int ath6kl_bmi_done(struct ath6kl *ar)
 
 	ar->bmi.done_sent = true;
 
-	ret = ath6kl_hif_bmi_send_buf(ar, (u8 *)&cid, sizeof(cid));
+	ret = ath6kl_hif_bmi_write(ar, (u8 *)&cid, sizeof(cid));
 	if (ret) {
 		ath6kl_err("Unable to send bmi done: %d\n", ret);
 		return ret;
@@ -51,17 +51,17 @@ int ath6kl_bmi_get_target_info(struct ath6kl *ar,
 		return -EACCES;
 	}
 
-	ret = ath6kl_hif_bmi_send_buf(ar, (u8 *)&cid, sizeof(cid));
+	ret = ath6kl_hif_bmi_write(ar, (u8 *)&cid, sizeof(cid));
 	if (ret) {
 		ath6kl_err("Unable to send get target info: %d\n", ret);
 		return ret;
 	}
 
 	if (ar->hif_type == ATH6KL_HIF_TYPE_USB) {
-		ret = ath6kl_hif_bmi_recv_buf(ar, (u8 *)targ_info,
+		ret = ath6kl_hif_bmi_read(ar, (u8 *)targ_info,
 				sizeof(struct ath6kl_bmi_target_info), true);
 	} else {
-		ret = ath6kl_hif_bmi_recv_buf(ar, (u8 *)&targ_info->version,
+		ret = ath6kl_hif_bmi_read(ar, (u8 *)&targ_info->version,
 				sizeof(targ_info->version), true);
 	}
 
@@ -72,7 +72,7 @@ int ath6kl_bmi_get_target_info(struct ath6kl *ar,
 
 	if (le32_to_cpu(targ_info->version) == TARGET_VERSION_SENTINAL) {
 		/* Determine how many bytes are in the Target's targ_info */
-		ret = ath6kl_hif_bmi_recv_buf(ar,
+		ret = ath6kl_hif_bmi_read(ar,
 					      (u8 *)&targ_info->byte_count,
 					      sizeof(targ_info->byte_count),
 					      true);
@@ -92,7 +92,7 @@ int ath6kl_bmi_get_target_info(struct ath6kl *ar,
 		}
 
 		/* Read the remainder of the targ_info */
-		ret = ath6kl_hif_bmi_recv_buf(ar,
+		ret = ath6kl_hif_bmi_read(ar,
 					      ((u8 *)targ_info) +
 					      sizeof(targ_info->byte_count),
 					      sizeof(*targ_info) -
@@ -151,14 +151,14 @@ int ath6kl_bmi_read(struct ath6kl *ar, u32 addr, u8 *buf, u32 len)
 		memcpy(&(ar->bmi.cmd_buf[offset]), &rx_len, sizeof(rx_len));
 		offset += sizeof(len);
 
-		ret = ath6kl_hif_bmi_send_buf(ar, ar->bmi.cmd_buf,
+		ret = ath6kl_hif_bmi_write(ar, ar->bmi.cmd_buf,
 					offset);
 		if (ret) {
 			ath6kl_err("Unable to write to the device: %d\n",
 				   ret);
 			return ret;
 		}
-		ret = ath6kl_hif_bmi_recv_buf(ar, ar->bmi.cmd_buf,
+		ret = ath6kl_hif_bmi_read(ar, ar->bmi.cmd_buf,
 					rx_len, true);
 		if (ret) {
 			ath6kl_err("Unable to read from the device: %d\n",
@@ -227,7 +227,7 @@ int ath6kl_bmi_write(struct ath6kl *ar, u32 addr, u8 *buf, u32 len)
 		memcpy(&(ar->bmi.cmd_buf[offset]), src, tx_len);
 		offset += tx_len;
 
-		ret = ath6kl_hif_bmi_send_buf(ar, ar->bmi.cmd_buf, offset);
+		ret = ath6kl_hif_bmi_write(ar, ar->bmi.cmd_buf, offset);
 		if (ret) {
 			ath6kl_err("Unable to write to the device: %d\n",
 				   ret);
@@ -270,13 +270,13 @@ int ath6kl_bmi_execute(struct ath6kl *ar, u32 addr, u32 *param)
 	memcpy(&(ar->bmi.cmd_buf[offset]), param, sizeof(*param));
 	offset += sizeof(*param);
 
-	ret = ath6kl_hif_bmi_send_buf(ar, ar->bmi.cmd_buf, offset);
+	ret = ath6kl_hif_bmi_write(ar, ar->bmi.cmd_buf, offset);
 	if (ret) {
 		ath6kl_err("Unable to write to the device: %d\n", ret);
 		return ret;
 	}
 
-	ret = ath6kl_hif_bmi_recv_buf(ar, ar->bmi.cmd_buf,
+	ret = ath6kl_hif_bmi_read(ar, ar->bmi.cmd_buf,
 				sizeof(*param), false);
 	if (ret) {
 		ath6kl_err("Unable to read from the device: %d\n", ret);
@@ -316,7 +316,7 @@ int ath6kl_bmi_set_app_start(struct ath6kl *ar, u32 addr)
 	memcpy(&(ar->bmi.cmd_buf[offset]), &addr, sizeof(addr));
 	offset += sizeof(addr);
 
-	ret = ath6kl_hif_bmi_send_buf(ar, ar->bmi.cmd_buf, offset);
+	ret = ath6kl_hif_bmi_write(ar, ar->bmi.cmd_buf, offset);
 	if (ret) {
 		ath6kl_err("Unable to write to the device: %d\n", ret);
 		return ret;
@@ -353,13 +353,13 @@ int ath6kl_bmi_reg_read(struct ath6kl *ar, u32 addr, u32 *param)
 	memcpy(&(ar->bmi.cmd_buf[offset]), &addr, sizeof(addr));
 	offset += sizeof(addr);
 
-	ret = ath6kl_hif_bmi_send_buf(ar, ar->bmi.cmd_buf, offset);
+	ret = ath6kl_hif_bmi_write(ar, ar->bmi.cmd_buf, offset);
 	if (ret) {
 		ath6kl_err("Unable to write to the device: %d\n", ret);
 		return ret;
 	}
 
-	ret = ath6kl_hif_bmi_recv_buf(ar, ar->bmi.cmd_buf,
+	ret = ath6kl_hif_bmi_read(ar, ar->bmi.cmd_buf,
 				sizeof(*param), true);
 	if (ret) {
 		ath6kl_err("Unable to read from the device: %d\n", ret);
@@ -402,7 +402,7 @@ int ath6kl_bmi_reg_write(struct ath6kl *ar, u32 addr, u32 param)
 	memcpy(&(ar->bmi.cmd_buf[offset]), &param, sizeof(param));
 	offset += sizeof(param);
 
-	ret = ath6kl_hif_bmi_send_buf(ar, ar->bmi.cmd_buf, offset);
+	ret = ath6kl_hif_bmi_write(ar, ar->bmi.cmd_buf, offset);
 	if (ret) {
 		ath6kl_err("Unable to write to the device: %d\n", ret);
 		return ret;
@@ -451,7 +451,7 @@ int ath6kl_bmi_lz_data(struct ath6kl *ar, u8 *buf, u32 len)
 			tx_len);
 		offset += tx_len;
 
-		ret = ath6kl_hif_bmi_send_buf(ar, ar->bmi.cmd_buf, offset);
+		ret = ath6kl_hif_bmi_write(ar, ar->bmi.cmd_buf, offset);
 		if (ret) {
 			ath6kl_err("Unable to write to the device: %d\n",
 				   ret);
@@ -494,7 +494,7 @@ int ath6kl_bmi_lz_stream_start(struct ath6kl *ar, u32 addr)
 	memcpy(&(ar->bmi.cmd_buf[offset]), &addr, sizeof(addr));
 	offset += sizeof(addr);
 
-	ret = ath6kl_hif_bmi_send_buf(ar, ar->bmi.cmd_buf, offset);
+	ret = ath6kl_hif_bmi_write(ar, ar->bmi.cmd_buf, offset);
 	if (ret) {
 		ath6kl_err("Unable to start LZ stream to the device: %d\n",
 			   ret);

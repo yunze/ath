@@ -996,8 +996,7 @@ static int ath6kl_bmi_get_rx_lkahd(struct ath6kl *ar, bool need_timeout)
 	return ret;
 }
 
-static int ath6kl_sdio_bmi_send_buf(struct ath6kl *ar,
-			u8 *buf, u32 len)
+static int ath6kl_sdio_bmi_write(struct ath6kl *ar, u8 *buf, u32 len)
 {
 	int ret;
 	u32 addr;
@@ -1016,8 +1015,8 @@ static int ath6kl_sdio_bmi_send_buf(struct ath6kl *ar,
 	return ret;
 }
 
-static int ath6kl_sdio_bmi_recv_buf(struct ath6kl *ar,
-			u8 *buf, u32 len, bool want_timeout)
+static int ath6kl_sdio_bmi_read(struct ath6kl *ar, u8 *buf, u32 len,
+				bool want_timeout)
 {
 	int ret;
 	u32 addr;
@@ -1131,8 +1130,8 @@ static const struct ath6kl_hif_ops ath6kl_sdio_ops = {
 	.suspend = ath6kl_sdio_suspend,
 	.diag_read32 = ath6kl_sdio_diag_read32,
 	.diag_write32 = ath6kl_sdio_diag_write32,
-	.bmi_recv_buf = ath6kl_sdio_bmi_recv_buf,
-	.bmi_send_buf = ath6kl_sdio_bmi_send_buf,
+	.bmi_read = ath6kl_sdio_bmi_read,
+	.bmi_write = ath6kl_sdio_bmi_write,
 	.resume = ath6kl_sdio_resume,
 	.power_on = ath6kl_sdio_power_on,
 	.power_off = ath6kl_sdio_power_off,

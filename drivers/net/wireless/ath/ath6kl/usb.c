@@ -1032,8 +1032,8 @@ static int ath6kl_usb_diag_write32(struct ath6kl *ar, u32 address, __le32 data)
 
 }
 
-static int ath6kl_usb_bmi_recv_buf(struct ath6kl *ar,
-				   u8 *buf, u32 len, bool want_timeout)
+static int ath6kl_usb_bmi_read(struct ath6kl *ar, u8 *buf, u32 len,
+			       bool want_timeout)
 {
 	int status;
 	struct ath6kl_usb *device = (struct ath6kl_usb *)ar->hif_priv;
@@ -1050,7 +1050,7 @@ static int ath6kl_usb_bmi_recv_buf(struct ath6kl *ar,
 	return 0;
 }
 
-static int ath6kl_usb_bmi_send_buf(struct ath6kl *ar, u8 * buf, u32 len)
+static int ath6kl_usb_bmi_write(struct ath6kl *ar, u8 * buf, u32 len)
 {
 	int status;
 	struct ath6kl_usb *device = (struct ath6kl_usb *)ar->hif_priv;
@@ -1079,8 +1079,8 @@ static int ath6kl_usb_power_off(struct ath6kl *ar)
 static const struct ath6kl_hif_ops ath6kl_usb_ops = {
 	.diag_read32 = ath6kl_usb_diag_read32,
 	.diag_write32 = ath6kl_usb_diag_write32,
-	.bmi_recv_buf = ath6kl_usb_bmi_recv_buf,
-	.bmi_send_buf = ath6kl_usb_bmi_send_buf,
+	.bmi_read = ath6kl_usb_bmi_read,
+	.bmi_write = ath6kl_usb_bmi_write,
 	.power_on = ath6kl_usb_power_on,
 	.power_off = ath6kl_usb_power_off,
 };
