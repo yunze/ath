@@ -42,7 +42,7 @@ ath6kl_usb-y += init.o
 ath6kl_usb-y += main.o
 ath6kl_usb-y += txrx.o
 ath6kl_usb-y += wmi.o
-ath6kl_usb-y += hif_usb.o
+ath6kl_usb-y += usb.o
 ath6kl_usb-y += htc_pipe.o
 ath6kl_usb-$(CONFIG_NL80211_TESTMODE) += testmode.o
 

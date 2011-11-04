@@ -22,7 +22,7 @@
 #include "htc.h"
 #include "common.h"
 
-#include "hif_usb.h"
+#include "usb.h"
 
 /* htc pipe operational parameters */
 #define HTC_TARGET_RESPONSE_TIMEOUT     2000	/* in ms */
