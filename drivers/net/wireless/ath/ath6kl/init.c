@@ -476,20 +476,20 @@ int ath6kl_configure_target(struct ath6kl *ar)
 		ram_reserved_size = ar->hw.reserved_ram_size;
 
 		if (ath6kl_bmi_write(ar, ath6kl_get_hi_item_addr(ar,
-								 HI_ITEM(hi_board_ext_data)),
+					HI_ITEM(hi_board_ext_data)),
 				     (u8 *)&param, 4) != 0) {
 			ath6kl_err("bmi_write_memory for hi_board_ext_data failed\n");
 			return -EIO;
 		}
 
 		if (ath6kl_bmi_write(ar, ath6kl_get_hi_item_addr(ar,
-								 HI_ITEM(hi_end_ram_reserve_sz)),
+					HI_ITEM(hi_end_ram_reserve_sz)),
 				     (u8 *)&ram_reserved_size, 4) != 0) {
 			ath6kl_err("bmi_write_memory for hi_end_ram_reserve_sz failed\n");
 			return -EIO;
 		}
 	}
-	
+
 	/* set the block size for the target */
 	if (ath6kl_set_htc_params(ar, MBOX_YIELD_LIMIT, 0))
 		/* use default number of control buffers */

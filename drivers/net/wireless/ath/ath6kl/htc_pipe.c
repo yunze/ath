@@ -843,9 +843,8 @@ static int htc_send_packets_multiple(struct htc_target *handle,
 
 	/* get first packet to find out which ep the packets will go into */
 	packet = list_first_entry(pkt_queue, struct htc_packet, list);
-	if (packet == NULL) {
+	if (packet == NULL)
 		return -EINVAL;
-	}
 
 	if (packet->endpoint >= ENDPOINT_MAX) {
 		WARN_ON(1);
@@ -1104,7 +1103,7 @@ static int htc_rx_completion(struct htc_target *context,
 
 		target->ctrl_response_valid = true;
 		target->ctrl_response_len =
-		    min((int)netlen, HTC_MAX_CTRL_MSG_LEN);
+			min_t(int, netlen, HTC_MAX_CTRL_MSG_LEN);
 		memcpy(target->ctrl_response_buf, netdata,
 		       target->ctrl_response_len);
 
@@ -1216,7 +1215,8 @@ static int htc_wait_recv_ctrl_message(struct htc_pipe_target *target)
 	return 0;
 }
 
-static void htc_rxctrl_complete(struct htc_target *context, struct htc_packet *packet)
+static void htc_rxctrl_complete(struct htc_target *context,
+				struct htc_packet *packet)
 {
 	/* TODO, can't really receive HTC control messages yet.... */
 	ath6kl_dbg(ATH6KL_DBG_HTC, "%s: invalid call function\n",
@@ -1334,8 +1334,9 @@ int ath6kl_htc_conn_service(struct htc_target *handle,
 		       sizeof(struct htc_conn_service_msg));
 		conn_msg->msg_id = cpu_to_le16(HTC_MSG_CONN_SVC_ID);
 		conn_msg->svc_id = cpu_to_le16(conn_req->svc_id);
-		conn_msg->conn_flags =
-			cpu_to_le16(conn_req->conn_flags & ~HTC_SET_RECV_ALLOC_MASK);
+		conn_msg->conn_flags = cpu_to_le16(conn_req->conn_flags &
+						   ~HTC_SET_RECV_ALLOC_MASK);
+
 		/* tell target desired recv alloc for this ep */
 		conn_msg->conn_flags |=
 			cpu_to_le16(tx_alloc << HTC_SET_RECV_ALLOC_SHIFT);
@@ -1537,9 +1538,8 @@ void ath6kl_htc_cleanup(struct htc_target *handle)
 	struct ath6kl *ar = handle->dev->ar;
 	struct htc_pipe_target *target = (struct htc_pipe_target *) handle;
 
-	if (ar->hif_priv != NULL) {
+	if (ar->hif_priv != NULL)
 		hif_detach_htc(ar);
-	}
 
 	while (true) {
 		packet = alloc_htc_packet_container(target);
@@ -1578,8 +1578,7 @@ int ath6kl_htc_start(struct htc_target *handle)
 	if (0) {
 		ath6kl_dbg(ATH6KL_DBG_HTC,
 			   "HTC will not use TX credit flow control\n");
-		setup_comp->flags |=
-			cpu_to_le32(HTC_SETUP_COMPLETE_FLAGS_DISABLE_TX_CREDIT_FLOW);
+		setup_comp->flags |= cpu_to_le32(HTC_SETUP_COMPLETE_FLAGS_DISABLE_TX_CREDIT_FLOW);
 	} else {
 		ath6kl_dbg(ATH6KL_DBG_HTC,
 			   "HTC using TX credit flow control\n");

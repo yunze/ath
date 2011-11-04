@@ -129,8 +129,8 @@ static void ath6kl_usb_recv_complete(struct urb *urb);
 #define ATH6KL_USB_IS_DIR_IN(addr)  ((addr) & 0x80)
 
 /* pipe/urb operations */
-static struct hif_urb_context *ath6kl_usb_alloc_urb_from_pipe(struct ath6kl_usb_pipe
-							   *pipe)
+static struct hif_urb_context *ath6kl_usb_alloc_urb_from_pipe(
+						struct ath6kl_usb_pipe *pipe)
 {
 	struct hif_urb_context *urb_context = NULL;
 	unsigned long flags;
@@ -176,7 +176,8 @@ static inline struct ath6kl_usb *ath6kl_usb_priv(struct ath6kl *ar)
 }
 
 /* pipe resource allocation/cleanup */
-static int ath6kl_usb_alloc_pipe_resources(struct ath6kl_usb_pipe *pipe, int urb_cnt)
+static int ath6kl_usb_alloc_pipe_resources(struct ath6kl_usb_pipe *pipe,
+					   int urb_cnt)
 {
 	int status = 0;
 	int i;
@@ -420,17 +421,15 @@ static void ath6kl_usb_post_recv_transfers(struct ath6kl_usb_pipe *recv_pipe,
 			break;
 
 		urb_context->buf = dev_alloc_skb(buffer_length);
-		if (urb_context->buf == NULL) {
+		if (urb_context->buf == NULL)
 			goto err_cleanup_urb;
-		}
 
 		data = urb_context->buf->data;
 		len = urb_context->buf->len;
 
 		urb = usb_alloc_urb(0, GFP_ATOMIC);
-		if (urb == NULL) {
+		if (urb == NULL)
 			goto err_cleanup_urb;
-		}
 
 		usb_fill_bulk_urb(urb,
 				  recv_pipe->ar_usb->udev,
@@ -486,8 +485,9 @@ static void ath6kl_usb_start_recv_pipes(struct ath6kl_usb *device)
 	 * note: control pipe is no longer used
 	 * device->pipes[ATH6KL_USB_PIPE_RX_CTRL].urb_cnt_thresh =
 	 *      device->pipes[ATH6KL_USB_PIPE_RX_CTRL].urb_alloc/2;
-	 * ath6kl_usb_post_recv_transfers(&device->pipes[ATH6KL_USB_PIPE_RX_CTRL],
-	 *       ATH6KL_USB_RX_BUFFER_SIZE);
+	 * ath6kl_usb_post_recv_transfers(&device->
+	 *		pipes[ATH6KL_USB_PIPE_RX_CTRL],
+	 *		ATH6KL_USB_RX_BUFFER_SIZE);
 	 */
 
 	device->pipes[ATH6KL_USB_PIPE_RX_DATA].urb_cnt_thresh =
@@ -711,7 +711,8 @@ void hif_start(struct ath6kl *ar)
 	ath6kl_usb_start_recv_pipes(device);
 
 	/* set the TX resource avail threshold for each TX pipe */
-	for (i = ATH6KL_USB_PIPE_TX_CTRL; i <= ATH6KL_USB_PIPE_TX_DATA_HP; i++) {
+	for (i = ATH6KL_USB_PIPE_TX_CTRL;
+	     i <= ATH6KL_USB_PIPE_TX_DATA_HP; i++) {
 		device->pipes[i].urb_cnt_thresh =
 		    device->pipes[i].urb_alloc / 2;
 	}
@@ -1038,8 +1039,9 @@ static int ath6kl_usb_bmi_read(struct ath6kl *ar, u8 *buf, u32 len,
 	int status;
 	struct ath6kl_usb *device = (struct ath6kl_usb *)ar->hif_priv;
 	/* get response */
-	status = ath6kl_usb_submit_ctrl_in(device, USB_CONTROL_REQ_RECV_BMI_RESP,
-					0, 0, buf, len);
+	status = ath6kl_usb_submit_ctrl_in(device,
+					   USB_CONTROL_REQ_RECV_BMI_RESP,
+					   0, 0, buf, len);
 
 	if (status != 0) {
 		ath6kl_err("Unable to read the bmi data from the device: %d\n",
@@ -1056,8 +1058,8 @@ static int ath6kl_usb_bmi_write(struct ath6kl *ar, u8 * buf, u32 len)
 	struct ath6kl_usb *device = (struct ath6kl_usb *)ar->hif_priv;
 	/* send command */
 	status =
-	    ath6kl_usb_submit_ctrl_out(device, USB_CONTROL_REQ_SEND_BMI_CMD, 0, 0,
-				    buf, len);
+	    ath6kl_usb_submit_ctrl_out(device, USB_CONTROL_REQ_SEND_BMI_CMD,
+				       0, 0, buf, len);
 
 	if (status != 0) {
 		ath6kl_err("unable to send the bmi data to the device\n");
