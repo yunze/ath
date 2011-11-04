@@ -73,7 +73,7 @@ struct ath6kl_usb {
 };
 
 /* usb urb object */
-struct hif_urb_context {
+struct ath6kl_urb_context {
 	struct list_head link;
 	struct ath6kl_usb_pipe *pipe;
 	struct sk_buff *buf;
@@ -127,17 +127,17 @@ static void ath6kl_usb_recv_complete(struct urb *urb);
 #define ATH6KL_USB_IS_DIR_IN(addr)  ((addr) & 0x80)
 
 /* pipe/urb operations */
-static struct hif_urb_context *ath6kl_usb_alloc_urb_from_pipe(
+static struct ath6kl_urb_context *ath6kl_usb_alloc_urb_from_pipe(
 						struct ath6kl_usb_pipe *pipe)
 {
-	struct hif_urb_context *urb_context = NULL;
+	struct ath6kl_urb_context *urb_context = NULL;
 	unsigned long flags;
 
 	spin_lock_irqsave(&pipe->ar_usb->cs_lock, flags);
 	if (!list_empty(&pipe->urb_list_head)) {
 		urb_context =
 		    list_first_entry(&pipe->urb_list_head,
-				     struct hif_urb_context, link);
+				     struct ath6kl_urb_context, link);
 		list_del(&urb_context->link);
 		pipe->urb_cnt--;
 	}
@@ -147,7 +147,7 @@ static struct hif_urb_context *ath6kl_usb_alloc_urb_from_pipe(
 }
 
 static void ath6kl_usb_free_urb_to_pipe(struct ath6kl_usb_pipe *pipe,
-				     struct hif_urb_context *urb_context)
+				     struct ath6kl_urb_context *urb_context)
 {
 	unsigned long flags;
 
@@ -158,7 +158,7 @@ static void ath6kl_usb_free_urb_to_pipe(struct ath6kl_usb_pipe *pipe,
 	spin_unlock_irqrestore(&pipe->ar_usb->cs_lock, flags);
 }
 
-static void ath6kl_usb_cleanup_recv_urb(struct hif_urb_context *urb_context)
+static void ath6kl_usb_cleanup_recv_urb(struct ath6kl_urb_context *urb_context)
 {
 	if (urb_context->buf != NULL) {
 		dev_kfree_skb(urb_context->buf);
@@ -179,18 +179,18 @@ static int ath6kl_usb_alloc_pipe_resources(struct ath6kl_usb_pipe *pipe,
 {
 	int status = 0;
 	int i;
-	struct hif_urb_context *urb_context;
+	struct ath6kl_urb_context *urb_context;
 
 	INIT_LIST_HEAD(&pipe->urb_list_head);
 	init_usb_anchor(&pipe->urb_submitted);
 
 	for (i = 0; i < urb_cnt; i++) {
-		urb_context = (struct hif_urb_context *)
-		    kzalloc(sizeof(struct hif_urb_context), GFP_KERNEL);
+		urb_context = (struct ath6kl_urb_context *)
+		    kzalloc(sizeof(struct ath6kl_urb_context), GFP_KERNEL);
 		if (urb_context == NULL)
 			break;
 
-		memset(urb_context, 0, sizeof(struct hif_urb_context));
+		memset(urb_context, 0, sizeof(struct ath6kl_urb_context));
 		urb_context->pipe = pipe;
 
 		/*
@@ -211,7 +211,7 @@ static int ath6kl_usb_alloc_pipe_resources(struct ath6kl_usb_pipe *pipe,
 
 static void ath6kl_usb_free_pipe_resources(struct ath6kl_usb_pipe *pipe)
 {
-	struct hif_urb_context *urb_context;
+	struct ath6kl_urb_context *urb_context;
 
 	if (pipe->ar_usb == NULL) {
 		/* nothing allocated for this pipe */
@@ -406,7 +406,7 @@ static int ath6kl_usb_setup_pipe_resources(struct ath6kl_usb *device)
 static void ath6kl_usb_post_recv_transfers(struct ath6kl_usb_pipe *recv_pipe,
 					int buffer_length)
 {
-	struct hif_urb_context *urb_context;
+	struct ath6kl_urb_context *urb_context;
 	u8 *data;
 	u32 len;
 	struct urb *urb;
@@ -507,8 +507,8 @@ static void ath6kl_usb_start_recv_pipes(struct ath6kl_usb *device)
 /* hif usb rx/tx completion functions */
 static void ath6kl_usb_recv_complete(struct urb *urb)
 {
-	struct hif_urb_context *urb_context =
-	    (struct hif_urb_context *)urb->context;
+	struct ath6kl_urb_context *urb_context =
+	    (struct ath6kl_urb_context *)urb->context;
 	int status = 0;
 	struct sk_buff *buf = NULL;
 	struct ath6kl_usb_pipe *pipe = urb_context->pipe;
@@ -565,8 +565,8 @@ cleanup_recv_urb:
 
 static void ath6kl_usb_usb_transmit_complete(struct urb *urb)
 {
-	struct hif_urb_context *urb_context =
-	    (struct hif_urb_context *)urb->context;
+	struct ath6kl_urb_context *urb_context =
+	    (struct ath6kl_urb_context *)urb->context;
 	struct sk_buff *buf;
 	struct ath6kl_usb_pipe *pipe = urb_context->pipe;
 
@@ -722,7 +722,7 @@ int hif_send(struct ath6kl *ar, u8 PipeID, struct sk_buff *hdr_buf,
 	int status = 0;
 	struct ath6kl_usb *device = ath6kl_usb_priv(ar);
 	struct ath6kl_usb_pipe *pipe = &device->pipes[PipeID];
-	struct hif_urb_context *urb_context;
+	struct ath6kl_urb_context *urb_context;
 	u8 *data;
 	u32 len;
 	struct urb *urb;
