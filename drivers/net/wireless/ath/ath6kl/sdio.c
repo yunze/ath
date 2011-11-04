@@ -1224,6 +1224,7 @@ static int ath6kl_sdio_probe(struct sdio_func *func,
 	ar->hif_priv = ar_sdio;
 	ar->hif_type = ATH6KL_HIF_TYPE_SDIO;
 	ar->hif_ops = &ath6kl_sdio_ops;
+	ar->bmi.max_data_size = 256;
 
 	ath6kl_sdio_set_mbox_info(ar);
 

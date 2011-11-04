@@ -44,9 +44,6 @@
  * BMI handles all required Target-side cache flushing.
  */
 
-#define BMI_SDIO_DATASZ_MAX                      256
-#define BMI_USB_DATASZ_MAX                      252
-
 /* BMI Commands */
 
 #define BMI_NO_COMMAND                      0

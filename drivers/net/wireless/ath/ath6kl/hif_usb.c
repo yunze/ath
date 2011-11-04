@@ -1049,6 +1049,8 @@ static int ath6kl_usb_probe(struct usb_interface *interface,
 	ar->hif_type = ATH6KL_HIF_TYPE_USB;
 	ar->hif_ops = &ath6kl_usb_ops;
 	ar->mbox_info.block_size = 16;
+	ar->bmi.max_data_size = 252;
+
 	ar_usb->claimed_context = ar;
 
 	result = ath6kl_core_init(ar);

@@ -19,17 +19,6 @@
 #include "target.h"
 #include "debug.h"
 
-static u32 ath6kl_bmi_get_max_data_size(struct ath6kl *ar)
-{
-	return (ar->hif_type == ATH6KL_HIF_TYPE_SDIO) ?
-		BMI_SDIO_DATASZ_MAX : BMI_USB_DATASZ_MAX;
-}
-
-static u32 ath6kl_bmi_get_max_cmd_size(struct ath6kl *ar)
-{
-	return ath6kl_bmi_get_max_data_size(ar) + (sizeof(u32) * 3);
-}
-
 int ath6kl_bmi_done(struct ath6kl *ar)
 {
 	int ret;
@@ -129,8 +118,8 @@ int ath6kl_bmi_read(struct ath6kl *ar, u32 addr, u8 *buf, u32 len)
 	int ret;
 	u32 offset;
 	u32 len_remain, rx_len;
-	u32 max_data_sz = ath6kl_bmi_get_max_data_size(ar);
-	u32 max_cmd_sz = ath6kl_bmi_get_max_cmd_size(ar);
+	u32 max_data_sz = ar->bmi.max_data_size;
+	u32 max_cmd_sz = ar->bmi.max_cmd_size;
 	u16 size;
 
 	if (ar->bmi.done_sent) {
@@ -190,8 +179,8 @@ int ath6kl_bmi_write(struct ath6kl *ar, u32 addr, u8 *buf, u32 len)
 	u32 offset;
 	u32 len_remain, tx_len;
 	const u32 header = sizeof(cid) + sizeof(addr) + sizeof(len);
-	u32 max_data_sz = ath6kl_bmi_get_max_data_size(ar);
-	u32 max_cmd_sz = ath6kl_bmi_get_max_cmd_size(ar);
+	u32 max_data_sz = ar->bmi.max_data_size;
+	u32 max_cmd_sz = ar->bmi.max_cmd_size;
 	/* u8 aligned_buf[max_data_sz]; FIXMEKVALO */
 	u8 aligned_buf[500];
 	u8 *src;
@@ -255,7 +244,7 @@ int ath6kl_bmi_execute(struct ath6kl *ar, u32 addr, u32 *param)
 	u32 cid = BMI_EXECUTE;
 	int ret;
 	u32 offset;
-	u32 max_cmd_sz = ath6kl_bmi_get_max_cmd_size(ar);
+	u32 max_cmd_sz = ar->bmi.max_cmd_size;
 	u16 size;
 
 	if (ar->bmi.done_sent) {
@@ -304,7 +293,7 @@ int ath6kl_bmi_set_app_start(struct ath6kl *ar, u32 addr)
 	u32 cid = BMI_SET_APP_START;
 	int ret;
 	u32 offset;
-	u32 max_cmd_sz = ath6kl_bmi_get_max_cmd_size(ar);
+	u32 max_cmd_sz = ar->bmi.max_cmd_size;
 	u16 size;
 
 	if (ar->bmi.done_sent) {
@@ -341,7 +330,7 @@ int ath6kl_bmi_reg_read(struct ath6kl *ar, u32 addr, u32 *param)
 	u32 cid = BMI_READ_SOC_REGISTER;
 	int ret;
 	u32 offset;
-	u32 max_cmd_sz = ath6kl_bmi_get_max_cmd_size(ar);
+	u32 max_cmd_sz = ar->bmi.max_cmd_size;
 	u16 size;
 
 	if (ar->bmi.done_sent) {
@@ -386,7 +375,7 @@ int ath6kl_bmi_reg_write(struct ath6kl *ar, u32 addr, u32 param)
 	u32 cid = BMI_WRITE_SOC_REGISTER;
 	int ret;
 	u32 offset;
-	u32 max_cmd_sz = ath6kl_bmi_get_max_cmd_size(ar);
+	u32 max_cmd_sz = ar->bmi.max_cmd_size;
 	u16 size;
 
 	if (ar->bmi.done_sent) {
@@ -429,8 +418,8 @@ int ath6kl_bmi_lz_data(struct ath6kl *ar, u8 *buf, u32 len)
 	u32 offset;
 	u32 len_remain, tx_len;
 	const u32 header = sizeof(cid) + sizeof(len);
-	u32 max_data_sz = ath6kl_bmi_get_max_data_size(ar);
-	u32 max_cmd_sz = ath6kl_bmi_get_max_cmd_size(ar);
+	u32 max_data_sz = ar->bmi.max_data_size;
+	u32 max_cmd_sz = ar->bmi.max_cmd_size;
 	u16 size;
 
 	if (ar->bmi.done_sent) {
@@ -480,7 +469,7 @@ int ath6kl_bmi_lz_stream_start(struct ath6kl *ar, u32 addr)
 	u32 cid = BMI_LZ_STREAM_START;
 	int ret;
 	u32 offset;
-	u32 max_cmd_sz = ath6kl_bmi_get_max_cmd_size(ar);
+	u32 max_cmd_sz = ar->bmi.max_cmd_size;
 	u16 size;
 
 	if (ar->bmi.done_sent) {
@@ -553,10 +542,12 @@ void ath6kl_bmi_reset(struct ath6kl *ar)
 
 int ath6kl_bmi_init(struct ath6kl *ar)
 {
-	u32 max_cmd_sz = ath6kl_bmi_get_max_cmd_size(ar);
+	if (WARN_ON(ar->bmi.max_data_size == 0))
+		return -EINVAL;
 
-	ar->bmi.cmd_buf = kzalloc(max_cmd_sz, GFP_ATOMIC);
+	ar->bmi.max_cmd_size = ar->bmi.max_data_size + (sizeof(u32) * 3);
 
+	ar->bmi.cmd_buf = kzalloc(ar->bmi.max_cmd_size, GFP_ATOMIC);
 	if (!ar->bmi.cmd_buf)
 		return -ENOMEM;
 
