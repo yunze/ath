@@ -18,8 +18,6 @@
 #include "cfg80211.h"
 
 /* constants */
-#define VENDOR_ATHR             0x0CF3
-
 #define TX_URB_COUNT            32
 #define RX_URB_COUNT            32
 #define ATH6KL_USB_RX_BUFFER_SIZE  1700
@@ -1199,7 +1197,7 @@ static int ath6kl_usb_reset_resume(struct usb_interface *intf)
 
 /* table of devices that work with this driver */
 static struct usb_device_id ath6kl_usb_ids[] = {
-	{USB_DEVICE(VENDOR_ATHR, 0x9374)},
+	{USB_DEVICE(0x0cf3, 0x9374)},
 	{ /* Terminating entry */ },
 };
 
