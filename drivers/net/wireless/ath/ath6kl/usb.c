@@ -80,24 +80,24 @@ struct ath6kl_urb_context {
 };
 
 /* USB endpoint definitions */
-#define USB_EP_ADDR_APP_CTRL_IN          0x81
-#define USB_EP_ADDR_APP_DATA_IN          0x82
-#define USB_EP_ADDR_APP_DATA2_IN         0x83
-#define USB_EP_ADDR_APP_INT_IN           0x84
+#define ATH6KL_USB_EP_ADDR_APP_CTRL_IN          0x81
+#define ATH6KL_USB_EP_ADDR_APP_DATA_IN          0x82
+#define ATH6KL_USB_EP_ADDR_APP_DATA2_IN         0x83
+#define ATH6KL_USB_EP_ADDR_APP_INT_IN           0x84
 
-#define USB_EP_ADDR_APP_CTRL_OUT         0x01
-#define USB_EP_ADDR_APP_DATA_LP_OUT      0x02
-#define USB_EP_ADDR_APP_DATA_MP_OUT      0x03
-#define USB_EP_ADDR_APP_DATA_HP_OUT      0x04
+#define ATH6KL_USB_EP_ADDR_APP_CTRL_OUT         0x01
+#define ATH6KL_USB_EP_ADDR_APP_DATA_LP_OUT      0x02
+#define ATH6KL_USB_EP_ADDR_APP_DATA_MP_OUT      0x03
+#define ATH6KL_USB_EP_ADDR_APP_DATA_HP_OUT      0x04
 
 /* diagnostic command defnitions */
-#define USB_CONTROL_REQ_SEND_BMI_CMD        1
-#define USB_CONTROL_REQ_RECV_BMI_RESP       2
-#define USB_CONTROL_REQ_DIAG_CMD            3
-#define USB_CONTROL_REQ_DIAG_RESP           4
+#define ATH6KL_USB_CONTROL_REQ_SEND_BMI_CMD        1
+#define ATH6KL_USB_CONTROL_REQ_RECV_BMI_RESP       2
+#define ATH6KL_USB_CONTROL_REQ_DIAG_CMD            3
+#define ATH6KL_USB_CONTROL_REQ_DIAG_RESP           4
 
-#define USB_CTRL_DIAG_CC_READ               0
-#define USB_CTRL_DIAG_CC_WRITE              1
+#define ATH6KL_USB_CTRL_DIAG_CC_READ               0
+#define ATH6KL_USB_CTRL_DIAG_CC_WRITE              1
 
 struct usb_ctrl_diag_cmd_write {
 	u32 cmd;
@@ -256,35 +256,35 @@ static u8 ath6kl_usb_get_logical_pipe_num(struct ath6kl_usb *device,
 	u8 pipe_num = ATH6KL_USB_PIPE_INVALID;
 
 	switch (ep_address) {
-	case USB_EP_ADDR_APP_CTRL_IN:
+	case ATH6KL_USB_EP_ADDR_APP_CTRL_IN:
 		pipe_num = ATH6KL_USB_PIPE_RX_CTRL;
 		*urb_count = RX_URB_COUNT;
 		break;
-	case USB_EP_ADDR_APP_DATA_IN:
+	case ATH6KL_USB_EP_ADDR_APP_DATA_IN:
 		pipe_num = ATH6KL_USB_PIPE_RX_DATA;
 		*urb_count = RX_URB_COUNT;
 		break;
-	case USB_EP_ADDR_APP_INT_IN:
+	case ATH6KL_USB_EP_ADDR_APP_INT_IN:
 		pipe_num = ATH6KL_USB_PIPE_RX_INT;
 		*urb_count = RX_URB_COUNT;
 		break;
-	case USB_EP_ADDR_APP_DATA2_IN:
+	case ATH6KL_USB_EP_ADDR_APP_DATA2_IN:
 		pipe_num = ATH6KL_USB_PIPE_RX_DATA2;
 		*urb_count = RX_URB_COUNT;
 		break;
-	case USB_EP_ADDR_APP_CTRL_OUT:
+	case ATH6KL_USB_EP_ADDR_APP_CTRL_OUT:
 		pipe_num = ATH6KL_USB_PIPE_TX_CTRL;
 		*urb_count = TX_URB_COUNT;
 		break;
-	case USB_EP_ADDR_APP_DATA_LP_OUT:
+	case ATH6KL_USB_EP_ADDR_APP_DATA_LP_OUT:
 		pipe_num = ATH6KL_USB_PIPE_TX_DATA_LP;
 		*urb_count = TX_URB_COUNT;
 		break;
-	case USB_EP_ADDR_APP_DATA_MP_OUT:
+	case ATH6KL_USB_EP_ADDR_APP_DATA_MP_OUT:
 		pipe_num = ATH6KL_USB_PIPE_TX_DATA_MP;
 		*urb_count = TX_URB_COUNT;
 		break;
-	case USB_EP_ADDR_APP_DATA_HP_OUT:
+	case ATH6KL_USB_EP_ADDR_APP_DATA_HP_OUT:
 		pipe_num = ATH6KL_USB_PIPE_TX_DATA_HP;
 		*urb_count = TX_URB_COUNT;
 		break;
@@ -989,16 +989,16 @@ static int ath6kl_usb_diag_read32(struct ath6kl *ar, u32 address, u32 *data)
 	cmd = (struct usb_ctrl_diag_cmd_read *)device->diag_cmd_buffer;
 
 	memset(cmd, 0, sizeof(struct usb_ctrl_diag_cmd_read));
-	cmd->cmd = USB_CTRL_DIAG_CC_READ;
+	cmd->cmd = ATH6KL_USB_CTRL_DIAG_CC_READ;
 	cmd->address = address;
 	resp_len = sizeof(struct usb_ctrl_diag_resp_read);
 
 	status = ath6kl_usb_ctrl_msg_exchange(device,
-					   USB_CONTROL_REQ_DIAG_CMD,
+					   ATH6KL_USB_CONTROL_REQ_DIAG_CMD,
 					   (u8 *) cmd,
 					   sizeof(struct
 						  usb_ctrl_diag_cmd_read),
-					   USB_CONTROL_REQ_DIAG_RESP,
+					   ATH6KL_USB_CONTROL_REQ_DIAG_RESP,
 					   device->diag_resp_buffer, &resp_len);
 
 	if (status == 0) {
@@ -1018,13 +1018,13 @@ static int ath6kl_usb_diag_write32(struct ath6kl *ar, u32 address, __le32 data)
 	cmd = (struct usb_ctrl_diag_cmd_write *)device->diag_cmd_buffer;
 
 	memset(cmd, 0, sizeof(struct usb_ctrl_diag_cmd_write));
-	cmd->cmd = USB_CTRL_DIAG_CC_WRITE;
+	cmd->cmd = ATH6KL_USB_CTRL_DIAG_CC_WRITE;
 	cmd->address = address;
 	/* FIXME: remove __force */
 	cmd->value = (__force unsigned) data;
 
 	return ath6kl_usb_ctrl_msg_exchange(device,
-					 USB_CONTROL_REQ_DIAG_CMD,
+					 ATH6KL_USB_CONTROL_REQ_DIAG_CMD,
 					 (u8 *) cmd,
 					 sizeof(struct usb_ctrl_diag_cmd_write),
 					 0, NULL, NULL);
@@ -1038,7 +1038,7 @@ static int ath6kl_usb_bmi_read(struct ath6kl *ar, u8 *buf, u32 len,
 	struct ath6kl_usb *device = (struct ath6kl_usb *)ar->hif_priv;
 	/* get response */
 	status = ath6kl_usb_submit_ctrl_in(device,
-					   USB_CONTROL_REQ_RECV_BMI_RESP,
+					   ATH6KL_USB_CONTROL_REQ_RECV_BMI_RESP,
 					   0, 0, buf, len);
 
 	if (status != 0) {
@@ -1056,7 +1056,8 @@ static int ath6kl_usb_bmi_write(struct ath6kl *ar, u8 * buf, u32 len)
 	struct ath6kl_usb *device = (struct ath6kl_usb *)ar->hif_priv;
 	/* send command */
 	status =
-	    ath6kl_usb_submit_ctrl_out(device, USB_CONTROL_REQ_SEND_BMI_CMD,
+	    ath6kl_usb_submit_ctrl_out(device,
+				       ATH6KL_USB_CONTROL_REQ_SEND_BMI_CMD,
 				       0, 0, buf, len);
 
 	if (status != 0) {
