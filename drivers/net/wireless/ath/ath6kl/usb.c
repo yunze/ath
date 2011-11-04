@@ -26,14 +26,14 @@
 
 /* tx/rx pipes for usb */
 enum ATH6KL_USB_PIPE_ID {
-	HIF_TX_CTRL_PIPE = 0,
-	HIF_TX_DATA_LP_PIPE,
-	HIF_TX_DATA_MP_PIPE,
-	HIF_TX_DATA_HP_PIPE,
-	HIF_RX_CTRL_PIPE,
-	HIF_RX_DATA_PIPE,
-	HIF_RX_DATA2_PIPE,
-	HIF_RX_INT_PIPE,
+	ATH6KL_USB_PIPE_TX_CTRL = 0,
+	ATH6KL_USB_PIPE_TX_DATA_LP,
+	ATH6KL_USB_PIPE_TX_DATA_MP,
+	ATH6KL_USB_PIPE_TX_DATA_HP,
+	ATH6KL_USB_PIPE_RX_CTRL,
+	ATH6KL_USB_PIPE_RX_DATA,
+	ATH6KL_USB_PIPE_RX_DATA2,
+	ATH6KL_USB_PIPE_RX_INT,
 	ATH6KL_USB_PIPE_MAX
 };
 
@@ -258,35 +258,35 @@ static u8 ath6kl_usb_get_logical_pipe_num(struct ath6kl_usb *device,
 
 	switch (ep_address) {
 	case USB_EP_ADDR_APP_CTRL_IN:
-		pipe_num = HIF_RX_CTRL_PIPE;
+		pipe_num = ATH6KL_USB_PIPE_RX_CTRL;
 		*urb_count = RX_URB_COUNT;
 		break;
 	case USB_EP_ADDR_APP_DATA_IN:
-		pipe_num = HIF_RX_DATA_PIPE;
+		pipe_num = ATH6KL_USB_PIPE_RX_DATA;
 		*urb_count = RX_URB_COUNT;
 		break;
 	case USB_EP_ADDR_APP_INT_IN:
-		pipe_num = HIF_RX_INT_PIPE;
+		pipe_num = ATH6KL_USB_PIPE_RX_INT;
 		*urb_count = RX_URB_COUNT;
 		break;
 	case USB_EP_ADDR_APP_DATA2_IN:
-		pipe_num = HIF_RX_DATA2_PIPE;
+		pipe_num = ATH6KL_USB_PIPE_RX_DATA2;
 		*urb_count = RX_URB_COUNT;
 		break;
 	case USB_EP_ADDR_APP_CTRL_OUT:
-		pipe_num = HIF_TX_CTRL_PIPE;
+		pipe_num = ATH6KL_USB_PIPE_TX_CTRL;
 		*urb_count = TX_URB_COUNT;
 		break;
 	case USB_EP_ADDR_APP_DATA_LP_OUT:
-		pipe_num = HIF_TX_DATA_LP_PIPE;
+		pipe_num = ATH6KL_USB_PIPE_TX_DATA_LP;
 		*urb_count = TX_URB_COUNT;
 		break;
 	case USB_EP_ADDR_APP_DATA_MP_OUT:
-		pipe_num = HIF_TX_DATA_MP_PIPE;
+		pipe_num = ATH6KL_USB_PIPE_TX_DATA_MP;
 		*urb_count = TX_URB_COUNT;
 		break;
 	case USB_EP_ADDR_APP_DATA_HP_OUT:
-		pipe_num = HIF_TX_DATA_HP_PIPE;
+		pipe_num = ATH6KL_USB_PIPE_TX_DATA_HP;
 		*urb_count = TX_URB_COUNT;
 		break;
 	default:
@@ -484,24 +484,24 @@ static void ath6kl_usb_start_recv_pipes(struct ath6kl_usb *device)
 {
 	/*
 	 * note: control pipe is no longer used
-	 * device->pipes[HIF_RX_CTRL_PIPE].urb_cnt_thresh =
-	 *      device->pipes[HIF_RX_CTRL_PIPE].urb_alloc/2;
-	 * ath6kl_usb_post_recv_transfers(&device->pipes[HIF_RX_CTRL_PIPE],
+	 * device->pipes[ATH6KL_USB_PIPE_RX_CTRL].urb_cnt_thresh =
+	 *      device->pipes[ATH6KL_USB_PIPE_RX_CTRL].urb_alloc/2;
+	 * ath6kl_usb_post_recv_transfers(&device->pipes[ATH6KL_USB_PIPE_RX_CTRL],
 	 *       ATH6KL_USB_RX_BUFFER_SIZE);
 	 */
 
-	device->pipes[HIF_RX_DATA_PIPE].urb_cnt_thresh =
-	    device->pipes[HIF_RX_DATA_PIPE].urb_alloc / 2;
-	ath6kl_usb_post_recv_transfers(&device->pipes[HIF_RX_DATA_PIPE],
+	device->pipes[ATH6KL_USB_PIPE_RX_DATA].urb_cnt_thresh =
+	    device->pipes[ATH6KL_USB_PIPE_RX_DATA].urb_alloc / 2;
+	ath6kl_usb_post_recv_transfers(&device->pipes[ATH6KL_USB_PIPE_RX_DATA],
 				    ATH6KL_USB_RX_BUFFER_SIZE);
 	/*
 	* Disable rxdata2 directly, it will be enabled
 	* if FW enable rxdata2
 	*/
 	if (0) {
-		device->pipes[HIF_RX_DATA2_PIPE].urb_cnt_thresh =
-		    device->pipes[HIF_RX_DATA2_PIPE].urb_alloc / 2;
-		ath6kl_usb_post_recv_transfers(&device->pipes[HIF_RX_DATA2_PIPE],
+		device->pipes[ATH6KL_USB_PIPE_RX_DATA2].urb_cnt_thresh =
+		    device->pipes[ATH6KL_USB_PIPE_RX_DATA2].urb_alloc / 2;
+		ath6kl_usb_post_recv_transfers(&device->pipes[ATH6KL_USB_PIPE_RX_DATA2],
 					    ATH6KL_USB_RX_BUFFER_SIZE);
 	}
 }
@@ -711,7 +711,7 @@ void hif_start(struct ath6kl *ar)
 	ath6kl_usb_start_recv_pipes(device);
 
 	/* set the TX resource avail threshold for each TX pipe */
-	for (i = HIF_TX_CTRL_PIPE; i <= HIF_TX_DATA_HP_PIPE; i++) {
+	for (i = ATH6KL_USB_PIPE_TX_CTRL; i <= ATH6KL_USB_PIPE_TX_DATA_HP; i++) {
 		device->pipes[i].urb_cnt_thresh =
 		    device->pipes[i].urb_alloc / 2;
 	}
@@ -802,8 +802,8 @@ void hif_stop(struct ath6kl *ar)
 
 void hif_get_default_pipe(struct ath6kl *ar, u8 *ULPipe, u8 *DLPipe)
 {
-	*ULPipe = HIF_TX_CTRL_PIPE;
-	*DLPipe = HIF_RX_CTRL_PIPE;
+	*ULPipe = ATH6KL_USB_PIPE_TX_CTRL;
+	*DLPipe = ATH6KL_USB_PIPE_RX_CTRL;
 }
 
 int hif_map_service_pipe(struct ath6kl *ar, u16 ServiceId, u8 *ULPipe,
@@ -814,46 +814,46 @@ int hif_map_service_pipe(struct ath6kl *ar, u16 ServiceId, u8 *ULPipe,
 	switch (ServiceId) {
 	case HTC_CTRL_RSVD_SVC:
 	case WMI_CONTROL_SVC:
-		*ULPipe = HIF_TX_CTRL_PIPE;
+		*ULPipe = ATH6KL_USB_PIPE_TX_CTRL;
 		/* due to large control packets, shift to data pipe */
 		if (0)
-			*DLPipe = HIF_RX_CTRL_PIPE;
+			*DLPipe = ATH6KL_USB_PIPE_RX_CTRL;
 		else
-			*DLPipe = HIF_RX_DATA_PIPE;
+			*DLPipe = ATH6KL_USB_PIPE_RX_DATA;
 		break;
 	case WMI_DATA_BE_SVC:
 	case WMI_DATA_BK_SVC:
-		*ULPipe = HIF_TX_DATA_LP_PIPE;
+		*ULPipe = ATH6KL_USB_PIPE_TX_DATA_LP;
 		/*
 		* Disable rxdata2 directly, it will be enabled
 		* if FW enable rxdata2
 		*/
 		if (1)
-			*DLPipe = HIF_RX_DATA_PIPE;
+			*DLPipe = ATH6KL_USB_PIPE_RX_DATA;
 		else
-			*DLPipe = HIF_RX_DATA2_PIPE;
+			*DLPipe = ATH6KL_USB_PIPE_RX_DATA2;
 		break;
 	case WMI_DATA_VI_SVC:
-		*ULPipe = HIF_TX_DATA_MP_PIPE;
+		*ULPipe = ATH6KL_USB_PIPE_TX_DATA_MP;
 		/*
 		* Disable rxdata2 directly, it will be enabled
 		* if FW enable rxdata2
 		*/
 		if (1)
-			*DLPipe = HIF_RX_DATA_PIPE;
+			*DLPipe = ATH6KL_USB_PIPE_RX_DATA;
 		else
-			*DLPipe = HIF_RX_DATA2_PIPE;
+			*DLPipe = ATH6KL_USB_PIPE_RX_DATA2;
 		break;
 	case WMI_DATA_VO_SVC:
-		*ULPipe = HIF_TX_DATA_HP_PIPE;
+		*ULPipe = ATH6KL_USB_PIPE_TX_DATA_HP;
 		/*
 		* Disable rxdata2 directly, it will be enabled
 		* if FW enable rxdata2
 		*/
 		if (1)
-			*DLPipe = HIF_RX_DATA_PIPE;
+			*DLPipe = ATH6KL_USB_PIPE_RX_DATA;
 		else
-			*DLPipe = HIF_RX_DATA2_PIPE;
+			*DLPipe = ATH6KL_USB_PIPE_RX_DATA2;
 		break;
 	default:
 		status = -EPERM;
@@ -1175,12 +1175,12 @@ static int ath6kl_usb_resume(struct usb_interface *interface)
 	device = (struct ath6kl_usb *)usb_get_intfdata(interface);
 	/* re-post urbs? */
 	if (0) {
-		ath6kl_usb_post_recv_transfers(&device->pipes[HIF_RX_CTRL_PIPE],
+		ath6kl_usb_post_recv_transfers(&device->pipes[ATH6KL_USB_PIPE_RX_CTRL],
 					    ATH6KL_USB_RX_BUFFER_SIZE);
 	}
-	ath6kl_usb_post_recv_transfers(&device->pipes[HIF_RX_DATA_PIPE],
+	ath6kl_usb_post_recv_transfers(&device->pipes[ATH6KL_USB_PIPE_RX_DATA],
 				    ATH6KL_USB_RX_BUFFER_SIZE);
-	ath6kl_usb_post_recv_transfers(&device->pipes[HIF_RX_DATA2_PIPE],
+	ath6kl_usb_post_recv_transfers(&device->pipes[ATH6KL_USB_PIPE_RX_DATA2],
 				    ATH6KL_USB_RX_BUFFER_SIZE);
 
 	return 0;
