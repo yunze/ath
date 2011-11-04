@@ -98,24 +98,24 @@ struct ath6kl_urb_context {
 #define ATH6KL_USB_CTRL_DIAG_CC_READ               0
 #define ATH6KL_USB_CTRL_DIAG_CC_WRITE              1
 
-struct usb_ctrl_diag_cmd_write {
+struct ath6kl_usb_ctrl_diag_cmd_write {
 	__le32 cmd;
 	__le32 address;
 	__le32 value;
 	__le32 _pad[1];
 } __packed;
 
-struct usb_ctrl_diag_cmd_read {
+struct ath6kl_usb_ctrl_diag_cmd_read {
 	__le32 cmd;
 	__le32 address;
 } __packed;
 
-struct usb_ctrl_diag_resp_read {
+struct ath6kl_usb_ctrl_diag_resp_read {
 	__le32 value;
 } __packed;
 
-#define USB_CTRL_MAX_DIAG_CMD_SIZE  (sizeof(struct usb_ctrl_diag_cmd_write))
-#define USB_CTRL_MAX_DIAG_RESP_SIZE (sizeof(struct usb_ctrl_diag_resp_read))
+#define USB_CTRL_MAX_DIAG_CMD_SIZE  (sizeof(struct ath6kl_usb_ctrl_diag_cmd_write))
+#define USB_CTRL_MAX_DIAG_RESP_SIZE (sizeof(struct ath6kl_usb_ctrl_diag_resp_read))
 
 /* function declarations */
 static void ath6kl_usb_recv_complete(struct urb *urb);
@@ -982,27 +982,27 @@ static int ath6kl_usb_diag_read32(struct ath6kl *ar, u32 address, u32 *data)
 {
 	struct ath6kl_usb *device = (struct ath6kl_usb *)ar->hif_priv;
 	int status;
-	struct usb_ctrl_diag_cmd_read *cmd;
+	struct ath6kl_usb_ctrl_diag_cmd_read *cmd;
 	u32 resp_len;
 
-	cmd = (struct usb_ctrl_diag_cmd_read *)device->diag_cmd_buffer;
+	cmd = (struct ath6kl_usb_ctrl_diag_cmd_read *) device->diag_cmd_buffer;
 
-	memset(cmd, 0, sizeof(struct usb_ctrl_diag_cmd_read));
+	memset(cmd, 0, sizeof(struct ath6kl_usb_ctrl_diag_cmd_read));
 	cmd->cmd = ATH6KL_USB_CTRL_DIAG_CC_READ;
 	cmd->address = cpu_to_le32(address);
-	resp_len = sizeof(struct usb_ctrl_diag_resp_read);
+	resp_len = sizeof(struct ath6kl_usb_ctrl_diag_resp_read);
 
 	status = ath6kl_usb_ctrl_msg_exchange(device,
 					   ATH6KL_USB_CONTROL_REQ_DIAG_CMD,
 					   (u8 *) cmd,
 					   sizeof(struct
-						  usb_ctrl_diag_cmd_read),
+						  ath6kl_usb_ctrl_diag_cmd_read),
 					   ATH6KL_USB_CONTROL_REQ_DIAG_RESP,
 					   device->diag_resp_buffer, &resp_len);
 
 	if (status == 0) {
-		struct usb_ctrl_diag_resp_read *pResp =
-		    (struct usb_ctrl_diag_resp_read *)device->diag_resp_buffer;
+		struct ath6kl_usb_ctrl_diag_resp_read *pResp =
+		    (struct ath6kl_usb_ctrl_diag_resp_read *) device->diag_resp_buffer;
 		*data = le32_to_cpu(pResp->value);
 	}
 
@@ -1012,11 +1012,11 @@ static int ath6kl_usb_diag_read32(struct ath6kl *ar, u32 address, u32 *data)
 static int ath6kl_usb_diag_write32(struct ath6kl *ar, u32 address, __le32 data)
 {
 	struct ath6kl_usb *device = (struct ath6kl_usb *)ar->hif_priv;
-	struct usb_ctrl_diag_cmd_write *cmd;
+	struct ath6kl_usb_ctrl_diag_cmd_write *cmd;
 
-	cmd = (struct usb_ctrl_diag_cmd_write *)device->diag_cmd_buffer;
+	cmd = (struct ath6kl_usb_ctrl_diag_cmd_write *)device->diag_cmd_buffer;
 
-	memset(cmd, 0, sizeof(struct usb_ctrl_diag_cmd_write));
+	memset(cmd, 0, sizeof(struct ath6kl_usb_ctrl_diag_cmd_write));
 	cmd->cmd = cpu_to_le32(ATH6KL_USB_CTRL_DIAG_CC_WRITE);
 	cmd->address = cpu_to_le32(address);
 	cmd->value = data;
@@ -1024,7 +1024,7 @@ static int ath6kl_usb_diag_write32(struct ath6kl *ar, u32 address, __le32 data)
 	return ath6kl_usb_ctrl_msg_exchange(device,
 					 ATH6KL_USB_CONTROL_REQ_DIAG_CMD,
 					 (u8 *) cmd,
-					 sizeof(struct usb_ctrl_diag_cmd_write),
+					 sizeof(struct ath6kl_usb_ctrl_diag_cmd_write),
 					 0, NULL, NULL);
 
 }
