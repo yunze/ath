@@ -16,6 +16,7 @@
 
 #include <linux/io.h>
 #include <linux/slab.h>
+#include <linux/module.h>
 #include <asm/unaligned.h>
 
 #include "hw.h"
@@ -1724,6 +1725,9 @@ int ath9k_hw_reset(struct ath_hw *ah, struct ath9k_channel *chan,
 	if (!ath9k_hw_init_cal(ah, chan))
 		return -EIO;
 
+	ath9k_hw_loadnf(ah, chan);
+	ath9k_hw_start_nfcal(ah, true);
+
 	ENABLE_REGWRITE_BUFFER(ah);
 
 	ath9k_hw_restore_chainmask(ah);
@@ -2331,7 +2335,7 @@ int ath9k_hw_fill_cap_info(struct ath_hw *ah)
 			ah->enabled_cals |= TX_IQ_ON_AGC_CAL;
 	}
 	if (AR_SREV_9462(ah))
-		pCap->hw_caps |= ATH9K_HW_CAP_RTT;
+		pCap->hw_caps |= ATH9K_HW_CAP_RTT | ATH9K_HW_CAP_MCI;
 
 	return 0;
 }
@@ -2579,7 +2583,7 @@ void ath9k_hw_set_txpowerlimit(struct ath_hw *ah, u32 limit, bool test)
 	struct ath9k_channel *chan = ah->curchan;
 	struct ieee80211_channel *channel = chan->chan;
 
-	reg->power_limit = min_t(int, limit, MAX_RATE_POWER);
+	reg->power_limit = min_t(u32, limit, MAX_RATE_POWER);
 	if (test)
 		channel->max_power = MAX_RATE_POWER / 2;
 

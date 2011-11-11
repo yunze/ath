@@ -14,6 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 #include "usb.h"
+
+#include <linux/module.h>
+
 #include "debug.h"
 #include "cfg80211.h"
 

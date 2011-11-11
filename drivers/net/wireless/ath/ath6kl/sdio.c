@@ -14,6 +14,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <linux/module.h>
 #include <linux/mmc/card.h>
 #include <linux/mmc/mmc.h>
 #include <linux/mmc/host.h>
@@ -773,7 +774,7 @@ out:
 	return ret;
 }
 
-static int ath6kl_sdio_suspend(struct ath6kl *ar)
+static int ath6kl_sdio_suspend(struct ath6kl *ar, struct cfg80211_wowlan *wow)
 {
 	struct ath6kl_sdio *ar_sdio = ath6kl_sdio_priv(ar);
 	struct sdio_func *func = ar_sdio->func;
@@ -787,7 +788,8 @@ static int ath6kl_sdio_suspend(struct ath6kl *ar)
 	if (!(flags & MMC_PM_KEEP_POWER) ||
 	    (ar->conf_flags & ATH6KL_CONF_SUSPEND_CUTPOWER)) {
 		/* as host doesn't support keep power we need to cut power */
-		return ath6kl_cfg80211_suspend(ar, ATH6KL_CFG_SUSPEND_CUTPOWER);
+		return ath6kl_cfg80211_suspend(ar, ATH6KL_CFG_SUSPEND_CUTPOWER,
+					       NULL);
 	}
 
 	ret = sdio_set_host_pm_flags(func, MMC_PM_KEEP_POWER);
@@ -797,7 +799,24 @@ static int ath6kl_sdio_suspend(struct ath6kl *ar)
 		return ret;
 	}
 
-	return ath6kl_cfg80211_suspend(ar, ATH6KL_CFG_SUSPEND_DEEPSLEEP);
+	if ((flags & MMC_PM_WAKE_SDIO_IRQ) && wow) {
+		/*
+		 * The host sdio controller is capable of keep power and
+		 * sdio irq wake up at this point. It's fine to continue
+		 * wow suspend operation.
+		 */
+		ret = ath6kl_cfg80211_suspend(ar, ATH6KL_CFG_SUSPEND_WOW, wow);
+		if (ret)
+			return ret;
+
+		ret = sdio_set_host_pm_flags(func, MMC_PM_WAKE_SDIO_IRQ);
+		if (ret)
+			ath6kl_err("set sdio wake irq flag failed: %d\n", ret);
+
+		return ret;
+	}
+
+	return ath6kl_cfg80211_suspend(ar, ATH6KL_CFG_SUSPEND_DEEPSLEEP, NULL);
 }
 
 /* set the window address register (using 4-byte register access ). */
@@ -868,11 +887,12 @@ static int ath6kl_sdio_resume(struct ath6kl *ar)
 		break;
 
 	case ATH6KL_STATE_ON:
-		/* we shouldn't be on this state during resume */
-		WARN_ON(1);
 		break;
 
 	case ATH6KL_STATE_DEEPSLEEP:
+		break;
+
+	case ATH6KL_STATE_WOW:
 		break;
 	}
 

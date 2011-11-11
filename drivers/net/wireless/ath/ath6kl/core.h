@@ -452,6 +452,9 @@ struct ath6kl_vif {
 	struct target_stats target_stats;
 };
 
+#define WOW_LIST_ID		0
+#define WOW_HOST_REQ_DELAY	500 /* ms */
+
 /* Flag info */
 enum ath6kl_dev_state {
 	WMI_ENABLED,
@@ -469,6 +472,7 @@ enum ath6kl_state {
 	ATH6KL_STATE_ON,
 	ATH6KL_STATE_DEEPSLEEP,
 	ATH6KL_STATE_CUTPOWER,
+	ATH6KL_STATE_WOW,
 };
 
 struct ath6kl {
@@ -691,5 +695,6 @@ struct ath6kl_vif *ath6kl_vif_first(struct ath6kl *ar);
 void ath6kl_cleanup_vif(struct ath6kl_vif *vif, bool wmi_ready);
 int ath6kl_init_hw_start(struct ath6kl *ar);
 int ath6kl_init_hw_stop(struct ath6kl *ar);
+void ath6kl_check_wow_status(struct ath6kl *ar);
 
 #endif /* CORE_H */
