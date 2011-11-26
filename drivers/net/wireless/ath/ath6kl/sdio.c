@@ -40,7 +40,11 @@ struct ath6kl_sdio {
 	struct bus_request bus_req[BUS_REQUEST_MAX_NUM];
 
 	struct ath6kl *ar;
+
 	u8 *dma_buffer;
+
+	/* protects access to dma_buffer */
+	struct mutex dma_buffer_mutex;
 
 	/* scatter request list head */
 	struct list_head scat_req;
@@ -396,6 +400,7 @@ static int ath6kl_sdio_read_write_sync(struct ath6kl *ar, u32 addr, u8 *buf,
 	if (buf_needs_bounce(buf)) {
 		if (!ar_sdio->dma_buffer)
 			return -ENOMEM;
+		mutex_lock(&ar_sdio->dma_buffer_mutex);
 		tbuf = ar_sdio->dma_buffer;
 		memcpy(tbuf, buf, len);
 		bounced = true;
@@ -405,6 +410,9 @@ static int ath6kl_sdio_read_write_sync(struct ath6kl *ar, u32 addr, u8 *buf,
 	ret = ath6kl_sdio_io(ar_sdio->func, request, addr, tbuf, len);
 	if ((request & HIF_READ) && bounced)
 		memcpy(buf, tbuf, len);
+
+	if (bounced)
+		mutex_unlock(&ar_sdio->dma_buffer_mutex);
 
 	return ret;
 }
@@ -819,6 +827,33 @@ static int ath6kl_sdio_suspend(struct ath6kl *ar, struct cfg80211_wowlan *wow)
 	return ath6kl_cfg80211_suspend(ar, ATH6KL_CFG_SUSPEND_DEEPSLEEP, NULL);
 }
 
+static int ath6kl_sdio_resume(struct ath6kl *ar)
+{
+	switch (ar->state) {
+	case ATH6KL_STATE_OFF:
+	case ATH6KL_STATE_CUTPOWER:
+		ath6kl_dbg(ATH6KL_DBG_SUSPEND,
+			   "sdio resume configuring sdio\n");
+
+		/* need to set sdio settings after power is cut from sdio */
+		ath6kl_sdio_config(ar);
+		break;
+
+	case ATH6KL_STATE_ON:
+		break;
+
+	case ATH6KL_STATE_DEEPSLEEP:
+		break;
+
+	case ATH6KL_STATE_WOW:
+		break;
+	}
+
+	ath6kl_cfg80211_resume(ar);
+
+	return 0;
+}
+
 /* set the window address register (using 4-byte register access ). */
 static int ath6kl_set_addrwin_reg(struct ath6kl *ar, u32 reg_addr, u32 addr)
 {
@@ -874,33 +909,6 @@ static int ath6kl_set_addrwin_reg(struct ath6kl *ar, u32 reg_addr, u32 addr)
 	return 0;
 }
 
-static int ath6kl_sdio_resume(struct ath6kl *ar)
-{
-	switch (ar->state) {
-	case ATH6KL_STATE_OFF:
-	case ATH6KL_STATE_CUTPOWER:
-		ath6kl_dbg(ATH6KL_DBG_SUSPEND,
-			   "sdio resume configuring sdio\n");
-
-		/* need to set sdio settings after power is cut from sdio */
-		ath6kl_sdio_config(ar);
-		break;
-
-	case ATH6KL_STATE_ON:
-		break;
-
-	case ATH6KL_STATE_DEEPSLEEP:
-		break;
-
-	case ATH6KL_STATE_WOW:
-		break;
-	}
-
-	ath6kl_cfg80211_resume(ar);
-
-	return 0;
-}
-
 static int ath6kl_sdio_diag_read32(struct ath6kl *ar, u32 address, u32 *data)
 {
 	int status;
@@ -944,7 +952,7 @@ static int ath6kl_sdio_diag_write32(struct ath6kl *ar, u32 address,
 				      address);
 }
 
-static int ath6kl_get_bmi_cmd_credits(struct ath6kl *ar)
+static int ath6kl_sdio_bmi_credits(struct ath6kl *ar)
 {
 	u32 addr;
 	unsigned long timeout;
@@ -1021,14 +1029,14 @@ static int ath6kl_sdio_bmi_write(struct ath6kl *ar, u8 *buf, u32 len)
 	int ret;
 	u32 addr;
 
-	ret = ath6kl_get_bmi_cmd_credits(ar);
+	ret = ath6kl_sdio_bmi_credits(ar);
 	if (ret)
 		return ret;
 
 	addr = ar->mbox_info.htc_addr;
 
 	ret = ath6kl_sdio_read_write_sync(ar, addr, buf, len,
-				  HIF_WR_SYNC_BYTE_INC);
+					  HIF_WR_SYNC_BYTE_INC);
 	if (ret)
 		ath6kl_err("unable to send the bmi data to the device\n");
 
@@ -1147,11 +1155,11 @@ static const struct ath6kl_hif_ops ath6kl_sdio_ops = {
 	.scat_req_rw = ath6kl_sdio_async_rw_scatter,
 	.cleanup_scatter = ath6kl_sdio_cleanup_scatter,
 	.suspend = ath6kl_sdio_suspend,
+	.resume = ath6kl_sdio_resume,
 	.diag_read32 = ath6kl_sdio_diag_read32,
 	.diag_write32 = ath6kl_sdio_diag_write32,
 	.bmi_read = ath6kl_sdio_bmi_read,
 	.bmi_write = ath6kl_sdio_bmi_write,
-	.resume = ath6kl_sdio_resume,
 	.power_on = ath6kl_sdio_power_on,
 	.power_off = ath6kl_sdio_power_off,
 	.stop = ath6kl_sdio_stop,
@@ -1220,6 +1228,7 @@ static int ath6kl_sdio_probe(struct sdio_func *func,
 	spin_lock_init(&ar_sdio->lock);
 	spin_lock_init(&ar_sdio->scat_lock);
 	spin_lock_init(&ar_sdio->wr_async_lock);
+	mutex_init(&ar_sdio->dma_buffer_mutex);
 
 	INIT_LIST_HEAD(&ar_sdio->scat_req);
 	INIT_LIST_HEAD(&ar_sdio->bus_req_freeq);
@@ -1238,8 +1247,8 @@ static int ath6kl_sdio_probe(struct sdio_func *func,
 	}
 
 	ar_sdio->ar = ar;
-	ar->hif_priv = ar_sdio;
 	ar->hif_type = ATH6KL_HIF_TYPE_SDIO;
+	ar->hif_priv = ar_sdio;
 	ar->hif_ops = &ath6kl_sdio_ops;
 	ar->bmi.max_data_size = 256;
 
@@ -1291,13 +1300,15 @@ static void ath6kl_sdio_remove(struct sdio_func *func)
 static const struct sdio_device_id ath6kl_sdio_devices[] = {
 	{SDIO_DEVICE(MANUFACTURER_CODE, (MANUFACTURER_ID_AR6003_BASE | 0x0))},
 	{SDIO_DEVICE(MANUFACTURER_CODE, (MANUFACTURER_ID_AR6003_BASE | 0x1))},
+	{SDIO_DEVICE(MANUFACTURER_CODE, (MANUFACTURER_ID_AR6004_BASE | 0x0))},
+	{SDIO_DEVICE(MANUFACTURER_CODE, (MANUFACTURER_ID_AR6004_BASE | 0x1))},
 	{},
 };
 
 MODULE_DEVICE_TABLE(sdio, ath6kl_sdio_devices);
 
 static struct sdio_driver ath6kl_sdio_driver = {
-	.name = "ath6kl",
+	.name = "ath6kl_sdio",
 	.id_table = ath6kl_sdio_devices,
 	.probe = ath6kl_sdio_probe,
 	.remove = ath6kl_sdio_remove,
@@ -1327,13 +1338,19 @@ MODULE_AUTHOR("Atheros Communications, Inc.");
 MODULE_DESCRIPTION("Driver support for Atheros AR600x SDIO devices");
 MODULE_LICENSE("Dual BSD/GPL");
 
-MODULE_FIRMWARE(AR6003_REV2_OTP_FILE);
-MODULE_FIRMWARE(AR6003_REV2_FIRMWARE_FILE);
-MODULE_FIRMWARE(AR6003_REV2_PATCH_FILE);
-MODULE_FIRMWARE(AR6003_REV2_BOARD_DATA_FILE);
-MODULE_FIRMWARE(AR6003_REV2_DEFAULT_BOARD_DATA_FILE);
-MODULE_FIRMWARE(AR6003_REV3_OTP_FILE);
-MODULE_FIRMWARE(AR6003_REV3_FIRMWARE_FILE);
-MODULE_FIRMWARE(AR6003_REV3_PATCH_FILE);
-MODULE_FIRMWARE(AR6003_REV3_BOARD_DATA_FILE);
-MODULE_FIRMWARE(AR6003_REV3_DEFAULT_BOARD_DATA_FILE);
+MODULE_FIRMWARE(AR6003_HW_2_0_OTP_FILE);
+MODULE_FIRMWARE(AR6003_HW_2_0_FIRMWARE_FILE);
+MODULE_FIRMWARE(AR6003_HW_2_0_PATCH_FILE);
+MODULE_FIRMWARE(AR6003_HW_2_0_BOARD_DATA_FILE);
+MODULE_FIRMWARE(AR6003_HW_2_0_DEFAULT_BOARD_DATA_FILE);
+MODULE_FIRMWARE(AR6003_HW_2_1_1_OTP_FILE);
+MODULE_FIRMWARE(AR6003_HW_2_1_1_FIRMWARE_FILE);
+MODULE_FIRMWARE(AR6003_HW_2_1_1_PATCH_FILE);
+MODULE_FIRMWARE(AR6003_HW_2_1_1_BOARD_DATA_FILE);
+MODULE_FIRMWARE(AR6003_HW_2_1_1_DEFAULT_BOARD_DATA_FILE);
+MODULE_FIRMWARE(AR6004_HW_1_0_FIRMWARE_FILE);
+MODULE_FIRMWARE(AR6004_HW_1_0_BOARD_DATA_FILE);
+MODULE_FIRMWARE(AR6004_HW_1_0_DEFAULT_BOARD_DATA_FILE);
+MODULE_FIRMWARE(AR6004_HW_1_1_FIRMWARE_FILE);
+MODULE_FIRMWARE(AR6004_HW_1_1_BOARD_DATA_FILE);
+MODULE_FIRMWARE(AR6004_HW_1_1_DEFAULT_BOARD_DATA_FILE);

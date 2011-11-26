@@ -41,9 +41,9 @@ enum ATH6K_DEBUG_MASK {
 	ATH6KL_DBG_BOOT		= BIT(18),    /* driver init and fw boot */
 	ATH6KL_DBG_WMI_DUMP	= BIT(19),
 	ATH6KL_DBG_SUSPEND	= BIT(20),
-	ATH6KL_DBG_USB		= BIT(21),    /* USB hif tracing */
-	ATH6KL_DBG_USB_BULK	= BIT(22),    /* USB hif bulk*/
-	ATH6KL_DBG_ANY		= 0xffffffff  /* enable all logs */
+	ATH6KL_DBG_USB		= BIT(21),
+	ATH6KL_DBG_USB_BULK	= BIT(22),
+	ATH6KL_DBG_ANY	        = 0xffffffff  /* enable all logs */
 };
 
 extern unsigned int debug_mask;

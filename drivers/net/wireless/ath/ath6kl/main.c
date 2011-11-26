@@ -466,6 +466,18 @@ void ath6kl_connect_ap_mode_sta(struct ath6kl_vif *vif, u16 aid, u8 *mac_addr,
 				wpa_ie = pos; /* WPS IE */
 				break; /* overrides WPA/RSN IE */
 			}
+		} else if (pos[0] == 0x44 && wpa_ie == NULL) {
+			/*
+			 * Note: WAPI Parameter Set IE re-uses Element ID that
+			 * was officially allocated for BSS AC Access Delay. As
+			 * such, we need to be a bit more careful on when
+			 * parsing the frame. However, BSS AC Access Delay
+			 * element is not supposed to be included in
+			 * (Re)Association Request frames, so this should not
+			 * cause problems.
+			 */
+			wpa_ie = pos; /* WAPI IE */
+			break;
 		}
 		pos += 2 + pos[1];
 	}
@@ -513,20 +525,6 @@ void ath6kl_disconnect(struct ath6kl_vif *vif)
 
 /* WMI Event handlers */
 
-static const char *get_hw_id_string(u32 id)
-{
-	switch (id) {
-	case AR6003_REV1_VERSION:
-		return "1.0";
-	case AR6003_REV2_VERSION:
-		return "2.0";
-	case AR6003_REV3_VERSION:
-		return "2.1.1";
-	default:
-		return "unknown";
-	}
-}
-
 void ath6kl_ready_event(void *devt, u8 *datap, u32 sw_ver, u32 abi_ver)
 {
 	struct ath6kl *ar = devt;
@@ -549,13 +547,6 @@ void ath6kl_ready_event(void *devt, u8 *datap, u32 sw_ver, u32 abi_ver)
 	/* indicate to the waiting thread that the ready event was received */
 	set_bit(WMI_READY, &ar->flag);
 	wake_up(&ar->event_wq);
-
-	if (test_and_clear_bit(FIRST_BOOT, &ar->flag)) {
-		ath6kl_info("hw %s fw %s%s\n",
-			    get_hw_id_string(ar->wiphy->hw_version),
-			    ar->wiphy->fw_version,
-			    test_bit(TESTMODE, &ar->flag) ? " testmode" : "");
-	}
 }
 
 void ath6kl_scan_complete_evt(struct ath6kl_vif *vif, int status)

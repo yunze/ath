@@ -59,7 +59,7 @@ int ath6kl_bmi_get_target_info(struct ath6kl *ar,
 
 	if (ar->hif_type == ATH6KL_HIF_TYPE_USB) {
 		ret = ath6kl_hif_bmi_read(ar, (u8 *)targ_info,
-				sizeof(struct ath6kl_bmi_target_info));
+					  sizeof(*targ_info));
 	} else {
 		ret = ath6kl_hif_bmi_read(ar, (u8 *)&targ_info->version,
 				sizeof(targ_info->version));
@@ -73,8 +73,8 @@ int ath6kl_bmi_get_target_info(struct ath6kl *ar,
 	if (le32_to_cpu(targ_info->version) == TARGET_VERSION_SENTINAL) {
 		/* Determine how many bytes are in the Target's targ_info */
 		ret = ath6kl_hif_bmi_read(ar,
-					      (u8 *)&targ_info->byte_count,
-					      sizeof(targ_info->byte_count));
+				   (u8 *)&targ_info->byte_count,
+				   sizeof(targ_info->byte_count));
 		if (ret) {
 			ath6kl_err("unable to read target info byte count: %d\n",
 				   ret);
@@ -92,10 +92,10 @@ int ath6kl_bmi_get_target_info(struct ath6kl *ar,
 
 		/* Read the remainder of the targ_info */
 		ret = ath6kl_hif_bmi_read(ar,
-					      ((u8 *)targ_info) +
-					      sizeof(targ_info->byte_count),
-					      sizeof(*targ_info) -
-					      sizeof(targ_info->byte_count));
+				   ((u8 *)targ_info) +
+				   sizeof(targ_info->byte_count),
+				   sizeof(*targ_info) -
+				   sizeof(targ_info->byte_count));
 
 		if (ret) {
 			ath6kl_err("Unable to read target info (%d bytes): %d\n",
@@ -116,8 +116,6 @@ int ath6kl_bmi_read(struct ath6kl *ar, u32 addr, u8 *buf, u32 len)
 	int ret;
 	u32 offset;
 	u32 len_remain, rx_len;
-	u32 max_data_sz = ar->bmi.max_data_size;
-	u32 max_cmd_sz = ar->bmi.max_cmd_size;
 	u16 size;
 
 	if (ar->bmi.done_sent) {
@@ -125,8 +123,8 @@ int ath6kl_bmi_read(struct ath6kl *ar, u32 addr, u8 *buf, u32 len)
 		return -EACCES;
 	}
 
-	size = max_data_sz + sizeof(cid) + sizeof(addr) + sizeof(len);
-	if (size > max_cmd_sz) {
+	size = ar->bmi.max_data_size + sizeof(cid) + sizeof(addr) + sizeof(len);
+	if (size > ar->bmi.max_cmd_size) {
 		WARN_ON(1);
 		return -EINVAL;
 	}
@@ -139,8 +137,8 @@ int ath6kl_bmi_read(struct ath6kl *ar, u32 addr, u8 *buf, u32 len)
 	len_remain = len;
 
 	while (len_remain) {
-		rx_len = (len_remain < max_data_sz) ?
-					len_remain : max_data_sz;
+		rx_len = (len_remain < ar->bmi.max_data_size) ?
+					len_remain : ar->bmi.max_data_size;
 		offset = 0;
 		memcpy(&(ar->bmi.cmd_buf[offset]), &cid, sizeof(cid));
 		offset += sizeof(cid);
@@ -149,15 +147,13 @@ int ath6kl_bmi_read(struct ath6kl *ar, u32 addr, u8 *buf, u32 len)
 		memcpy(&(ar->bmi.cmd_buf[offset]), &rx_len, sizeof(rx_len));
 		offset += sizeof(len);
 
-		ret = ath6kl_hif_bmi_write(ar, ar->bmi.cmd_buf,
-					offset);
+		ret = ath6kl_hif_bmi_write(ar, ar->bmi.cmd_buf, offset);
 		if (ret) {
 			ath6kl_err("Unable to write to the device: %d\n",
 				   ret);
 			return ret;
 		}
-		ret = ath6kl_hif_bmi_read(ar, ar->bmi.cmd_buf,
-					rx_len);
+		ret = ath6kl_hif_bmi_read(ar, ar->bmi.cmd_buf, rx_len);
 		if (ret) {
 			ath6kl_err("Unable to read from the device: %d\n",
 				   ret);
@@ -177,10 +173,7 @@ int ath6kl_bmi_write(struct ath6kl *ar, u32 addr, u8 *buf, u32 len)
 	u32 offset;
 	u32 len_remain, tx_len;
 	const u32 header = sizeof(cid) + sizeof(addr) + sizeof(len);
-	u32 max_data_sz = ar->bmi.max_data_size;
-	u32 max_cmd_sz = ar->bmi.max_cmd_size;
-	/* u8 aligned_buf[max_data_sz]; FIXMEKVALO */
-	u8 aligned_buf[500];
+	u8 aligned_buf[400];
 	u8 *src;
 
 	if (ar->bmi.done_sent) {
@@ -188,12 +181,15 @@ int ath6kl_bmi_write(struct ath6kl *ar, u32 addr, u8 *buf, u32 len)
 		return -EACCES;
 	}
 
-	if ((max_data_sz + header) > max_cmd_sz) {
+	if ((ar->bmi.max_data_size + header) > ar->bmi.max_cmd_size) {
 		WARN_ON(1);
 		return -EINVAL;
 	}
 
-	memset(ar->bmi.cmd_buf, 0, max_data_sz + header);
+	if (WARN_ON(ar->bmi.max_data_size > sizeof(aligned_buf)))
+		return -E2BIG;
+
+	memset(ar->bmi.cmd_buf, 0, ar->bmi.max_data_size + header);
 
 	ath6kl_dbg(ATH6KL_DBG_BMI,
 		  "bmi write memory: addr: 0x%x, len: %d\n", addr, len);
@@ -202,7 +198,7 @@ int ath6kl_bmi_write(struct ath6kl *ar, u32 addr, u8 *buf, u32 len)
 	while (len_remain) {
 		src = &buf[len - len_remain];
 
-		if (len_remain < (max_data_sz - header)) {
+		if (len_remain < (ar->bmi.max_data_size - header)) {
 			if (len_remain & 3) {
 				/* align it with 4 bytes */
 				len_remain = len_remain +
@@ -212,7 +208,7 @@ int ath6kl_bmi_write(struct ath6kl *ar, u32 addr, u8 *buf, u32 len)
 			}
 			tx_len = len_remain;
 		} else {
-			tx_len = (max_data_sz - header);
+			tx_len = (ar->bmi.max_data_size - header);
 		}
 
 		offset = 0;
@@ -242,7 +238,6 @@ int ath6kl_bmi_execute(struct ath6kl *ar, u32 addr, u32 *param)
 	u32 cid = BMI_EXECUTE;
 	int ret;
 	u32 offset;
-	u32 max_cmd_sz = ar->bmi.max_cmd_size;
 	u16 size;
 
 	if (ar->bmi.done_sent) {
@@ -251,7 +246,7 @@ int ath6kl_bmi_execute(struct ath6kl *ar, u32 addr, u32 *param)
 	}
 
 	size = sizeof(cid) + sizeof(addr) + sizeof(param);
-	if (size > max_cmd_sz) {
+	if (size > ar->bmi.max_cmd_size) {
 		WARN_ON(1);
 		return -EINVAL;
 	}
@@ -290,7 +285,6 @@ int ath6kl_bmi_set_app_start(struct ath6kl *ar, u32 addr)
 	u32 cid = BMI_SET_APP_START;
 	int ret;
 	u32 offset;
-	u32 max_cmd_sz = ar->bmi.max_cmd_size;
 	u16 size;
 
 	if (ar->bmi.done_sent) {
@@ -299,7 +293,7 @@ int ath6kl_bmi_set_app_start(struct ath6kl *ar, u32 addr)
 	}
 
 	size = sizeof(cid) + sizeof(addr);
-	if (size > max_cmd_sz) {
+	if (size > ar->bmi.max_cmd_size) {
 		WARN_ON(1);
 		return -EINVAL;
 	}
@@ -327,7 +321,6 @@ int ath6kl_bmi_reg_read(struct ath6kl *ar, u32 addr, u32 *param)
 	u32 cid = BMI_READ_SOC_REGISTER;
 	int ret;
 	u32 offset;
-	u32 max_cmd_sz = ar->bmi.max_cmd_size;
 	u16 size;
 
 	if (ar->bmi.done_sent) {
@@ -336,7 +329,7 @@ int ath6kl_bmi_reg_read(struct ath6kl *ar, u32 addr, u32 *param)
 	}
 
 	size = sizeof(cid) + sizeof(addr);
-	if (size > max_cmd_sz) {
+	if (size > ar->bmi.max_cmd_size) {
 		WARN_ON(1);
 		return -EINVAL;
 	}
@@ -371,7 +364,6 @@ int ath6kl_bmi_reg_write(struct ath6kl *ar, u32 addr, u32 param)
 	u32 cid = BMI_WRITE_SOC_REGISTER;
 	int ret;
 	u32 offset;
-	u32 max_cmd_sz = ar->bmi.max_cmd_size;
 	u16 size;
 
 	if (ar->bmi.done_sent) {
@@ -380,7 +372,7 @@ int ath6kl_bmi_reg_write(struct ath6kl *ar, u32 addr, u32 param)
 	}
 
 	size = sizeof(cid) + sizeof(addr) + sizeof(param);
-	if (size > max_cmd_sz) {
+	if (size > ar->bmi.max_cmd_size) {
 		WARN_ON(1);
 		return -EINVAL;
 	}
@@ -414,8 +406,6 @@ int ath6kl_bmi_lz_data(struct ath6kl *ar, u8 *buf, u32 len)
 	u32 offset;
 	u32 len_remain, tx_len;
 	const u32 header = sizeof(cid) + sizeof(len);
-	u32 max_data_sz = ar->bmi.max_data_size;
-	u32 max_cmd_sz = ar->bmi.max_cmd_size;
 	u16 size;
 
 	if (ar->bmi.done_sent) {
@@ -423,8 +413,8 @@ int ath6kl_bmi_lz_data(struct ath6kl *ar, u8 *buf, u32 len)
 		return -EACCES;
 	}
 
-	size = max_data_sz + header;
-	if (size > max_cmd_sz) {
+	size = ar->bmi.max_data_size + header;
+	if (size > ar->bmi.max_cmd_size) {
 		WARN_ON(1);
 		return -EINVAL;
 	}
@@ -435,8 +425,8 @@ int ath6kl_bmi_lz_data(struct ath6kl *ar, u8 *buf, u32 len)
 
 	len_remain = len;
 	while (len_remain) {
-		tx_len = (len_remain < (max_data_sz - header)) ?
-			  len_remain : (max_data_sz - header);
+		tx_len = (len_remain < (ar->bmi.max_data_size - header)) ?
+			  len_remain : (ar->bmi.max_data_size - header);
 
 		offset = 0;
 		memcpy(&(ar->bmi.cmd_buf[offset]), &cid, sizeof(cid));
@@ -465,7 +455,6 @@ int ath6kl_bmi_lz_stream_start(struct ath6kl *ar, u32 addr)
 	u32 cid = BMI_LZ_STREAM_START;
 	int ret;
 	u32 offset;
-	u32 max_cmd_sz = ar->bmi.max_cmd_size;
 	u16 size;
 
 	if (ar->bmi.done_sent) {
@@ -474,7 +463,7 @@ int ath6kl_bmi_lz_stream_start(struct ath6kl *ar, u32 addr)
 	}
 
 	size = sizeof(cid) + sizeof(addr);
-	if (size > max_cmd_sz) {
+	if (size > ar->bmi.max_cmd_size) {
 		WARN_ON(1);
 		return -EINVAL;
 	}
@@ -541,6 +530,7 @@ int ath6kl_bmi_init(struct ath6kl *ar)
 	if (WARN_ON(ar->bmi.max_data_size == 0))
 		return -EINVAL;
 
+	/* cmd + addr + len + data_size */
 	ar->bmi.max_cmd_size = ar->bmi.max_data_size + (sizeof(u32) * 3);
 
 	ar->bmi.cmd_buf = kzalloc(ar->bmi.max_cmd_size, GFP_ATOMIC);

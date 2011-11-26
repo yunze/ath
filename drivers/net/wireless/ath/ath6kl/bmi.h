@@ -133,7 +133,7 @@
  */
 
 #define TARGET_VERSION_SENTINAL 0xffffffff
-#define TARGET_TYPE_AR6003	3
+#define TARGET_TYPE_AR6003      3
 #define TARGET_TYPE_AR6004      5
 #define BMI_ROMPATCH_INSTALL               9
 /*

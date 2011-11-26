@@ -23,10 +23,8 @@
 #include "testmode.h"
 
 static unsigned int ath6kl_p2p;
-static unsigned int multi_norm_if_support;
 
 module_param(ath6kl_p2p, uint, 0644);
-module_param(multi_norm_if_support, uint, 0644);
 
 #define RATETAB_ENT(_rate, _rateid, _flags) {   \
 	.bitrate    = (_rate),                  \
@@ -205,6 +203,10 @@ static int ath6kl_set_cipher(struct ath6kl_vif *vif, u32 cipher, bool ucast)
 		*ar_cipher = AES_CRYPT;
 		*ar_cipher_len = 0;
 		break;
+	case WLAN_CIPHER_SUITE_SMS4:
+		*ar_cipher = WAPI_CRYPT;
+		*ar_cipher_len = 0;
+		break;
 	default:
 		ath6kl_err("cipher 0x%x not supported\n", cipher);
 		return -ENOTSUPP;
@@ -355,7 +357,7 @@ static bool ath6kl_is_valid_iftype(struct ath6kl *ar, enum nl80211_iftype type,
 
 	if (type == NL80211_IFTYPE_STATION ||
 	    type == NL80211_IFTYPE_AP || type == NL80211_IFTYPE_ADHOC) {
-		for (i = 0; i < MAX_NUM_VIF; i++) {
+		for (i = 0; i < ar->vif_max; i++) {
 			if ((ar->avail_idx_map >> i) & BIT(0)) {
 				*if_idx = i;
 				return true;
@@ -365,7 +367,7 @@ static bool ath6kl_is_valid_iftype(struct ath6kl *ar, enum nl80211_iftype type,
 
 	if (type == NL80211_IFTYPE_P2P_CLIENT ||
 	    type == NL80211_IFTYPE_P2P_GO) {
-		for (i = ar->max_norm_iface; i < MAX_NUM_VIF; i++) {
+		for (i = ar->max_norm_iface; i < ar->vif_max; i++) {
 			if ((ar->avail_idx_map >> i) & BIT(0)) {
 				*if_idx = i;
 				return true;
@@ -427,9 +429,12 @@ static int ath6kl_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 
 	if (sme->ie && (sme->ie_len > 0)) {
 		status = ath6kl_set_assoc_req_ies(vif, sme->ie, sme->ie_len);
-		if (status)
+		if (status) {
+			up(&ar->sem);
 			return status;
-	}
+		}
+	} else
+		ar->connect_ctrl_flags &= ~CONNECT_WPS_FLAG;
 
 	if (test_bit(CONNECTED, &vif->flags) &&
 	    vif->ssid_len == sme->ssid_len &&
@@ -563,17 +568,28 @@ static int ath6kl_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 	return 0;
 }
 
-static int ath6kl_add_bss_if_needed(struct ath6kl_vif *vif, const u8 *bssid,
+static int ath6kl_add_bss_if_needed(struct ath6kl_vif *vif,
+				    enum network_type nw_type,
+				    const u8 *bssid,
 				    struct ieee80211_channel *chan,
 				    const u8 *beacon_ie, size_t beacon_ie_len)
 {
 	struct ath6kl *ar = vif->ar;
 	struct cfg80211_bss *bss;
+	u16 cap_mask, cap_val;
 	u8 *ie;
 
+	if (nw_type & ADHOC_NETWORK) {
+		cap_mask = WLAN_CAPABILITY_IBSS;
+		cap_val = WLAN_CAPABILITY_IBSS;
+	} else {
+		cap_mask = WLAN_CAPABILITY_ESS;
+		cap_val = WLAN_CAPABILITY_ESS;
+	}
+
 	bss = cfg80211_get_bss(ar->wiphy, chan, bssid,
-			       vif->ssid, vif->ssid_len, WLAN_CAPABILITY_ESS,
-			       WLAN_CAPABILITY_ESS);
+			       vif->ssid, vif->ssid_len,
+			       cap_mask, cap_val);
 	if (bss == NULL) {
 		/*
 		 * Since cfg80211 may not yet know about the BSS,
@@ -591,13 +607,12 @@ static int ath6kl_add_bss_if_needed(struct ath6kl_vif *vif, const u8 *bssid,
 		memcpy(ie + 2, vif->ssid, vif->ssid_len);
 		memcpy(ie + 2 + vif->ssid_len, beacon_ie, beacon_ie_len);
 		bss = cfg80211_inform_bss(ar->wiphy, chan,
-					  bssid, 0, WLAN_CAPABILITY_ESS, 100,
+					  bssid, 0, cap_val, 100,
 					  ie, 2 + vif->ssid_len + beacon_ie_len,
 					  0, GFP_KERNEL);
 		if (bss)
-			ath6kl_dbg(ATH6KL_DBG_WLAN_CFG, "added dummy bss for "
-				   "%pM prior to indicating connect/roamed "
-				   "event\n", bssid);
+			ath6kl_dbg(ATH6KL_DBG_WLAN_CFG, "added bss %pM to "
+				   "cfg80211\n", bssid);
 		kfree(ie);
 	} else
 		ath6kl_dbg(ATH6KL_DBG_WLAN_CFG, "cfg80211 already has a bss "
@@ -660,16 +675,16 @@ void ath6kl_cfg80211_connect_event(struct ath6kl_vif *vif, u16 channel,
 
 	chan = ieee80211_get_channel(ar->wiphy, (int) channel);
 
-
-	if (nw_type & ADHOC_NETWORK) {
-		cfg80211_ibss_joined(vif->ndev, bssid, GFP_KERNEL);
+	if (ath6kl_add_bss_if_needed(vif, nw_type, bssid, chan, assoc_info,
+				     beacon_ie_len) < 0) {
+		ath6kl_err("could not add cfg80211 bss entry\n");
 		return;
 	}
 
-	if (ath6kl_add_bss_if_needed(vif, bssid, chan, assoc_info,
-				     beacon_ie_len) < 0) {
-		ath6kl_err("could not add cfg80211 bss entry for "
-			   "connect/roamed notification\n");
+	if (nw_type & ADHOC_NETWORK) {
+		ath6kl_dbg(ATH6KL_DBG_WLAN_CFG, "ad-hoc %s selected\n",
+			   nw_type & ADHOC_CREATOR ? "creator" : "joiner");
+		cfg80211_ibss_joined(vif->ndev, bssid, GFP_KERNEL);
 		return;
 	}
 
@@ -937,13 +952,19 @@ static int ath6kl_cfg80211_add_key(struct wiphy *wiphy, struct net_device *ndev,
 		key_usage = GROUP_USAGE;
 
 	if (params) {
+		int seq_len = params->seq_len;
+		if (params->cipher == WLAN_CIPHER_SUITE_SMS4 &&
+		    seq_len > ATH6KL_KEY_SEQ_LEN) {
+			/* Only first half of the WPI PN is configured */
+			seq_len = ATH6KL_KEY_SEQ_LEN;
+		}
 		if (params->key_len > WLAN_MAX_KEY_LEN ||
-		    params->seq_len > sizeof(key->seq))
+		    seq_len > sizeof(key->seq))
 			return -EINVAL;
 
 		key->key_len = params->key_len;
 		memcpy(key->key, params->key, key->key_len);
-		key->seq_len = params->seq_len;
+		key->seq_len = seq_len;
 		memcpy(key->seq, params->seq, key->seq_len);
 		key->cipher = params->cipher;
 	}
@@ -961,6 +982,9 @@ static int ath6kl_cfg80211_add_key(struct wiphy *wiphy, struct net_device *ndev,
 	case WLAN_CIPHER_SUITE_CCMP:
 		key_type = AES_CRYPT;
 		break;
+	case WLAN_CIPHER_SUITE_SMS4:
+		key_type = WAPI_CRYPT;
+		break;
 
 	default:
 		return -ENOTSUPP;
@@ -975,8 +999,6 @@ static int ath6kl_cfg80211_add_key(struct wiphy *wiphy, struct net_device *ndev,
 		   "%s: index %d, key_len %d, key_type 0x%x, key_usage 0x%x, seq_len %d\n",
 		   __func__, key_index, key->key_len, key_type,
 		   key_usage, key->seq_len);
-
-	vif->def_txkey_index = key_index;
 
 	if (vif->nw_type == AP_NETWORK && !pairwise &&
 	    (key_type == TKIP_CRYPT || key_type == AES_CRYPT) && params) {
@@ -1012,8 +1034,7 @@ static int ath6kl_cfg80211_add_key(struct wiphy *wiphy, struct net_device *ndev,
 		return 0;
 	}
 
-	return ath6kl_wmi_addkey_cmd(ar->wmi, vif->fw_vif_idx,
-				     vif->def_txkey_index,
+	return ath6kl_wmi_addkey_cmd(ar->wmi, vif->fw_vif_idx, key_index,
 				     key_type, key_usage, key->key_len,
 				     key->seq, key->seq_len, key->key,
 				     KEY_OP_INIT_VAL,
@@ -1181,11 +1202,12 @@ static int ath6kl_cfg80211_set_wiphy_params(struct wiphy *wiphy, u32 changed)
 */
 static int ath6kl_cfg80211_set_txpower(struct wiphy *wiphy,
 				       enum nl80211_tx_power_setting type,
-				       int dbm)
+				       int mbm)
 {
 	struct ath6kl *ar = (struct ath6kl *)wiphy_priv(wiphy);
 	struct ath6kl_vif *vif;
 	u8 ath6kl_dbm;
+	int dbm = MBM_TO_DBM(mbm);
 
 	ath6kl_dbg(ATH6KL_DBG_WLAN_CFG, "%s: type 0x%x, dbm %d\n", __func__,
 		   type, dbm);
@@ -1288,7 +1310,7 @@ static struct net_device *ath6kl_cfg80211_add_iface(struct wiphy *wiphy,
 	struct net_device *ndev;
 	u8 if_idx, nw_type;
 
-	if (ar->num_vif == MAX_NUM_VIF) {
+	if (ar->num_vif == ar->vif_max) {
 		ath6kl_err("Reached maximum number of supported vif\n");
 		return ERR_PTR(-EINVAL);
 	}
@@ -1332,9 +1354,6 @@ static int ath6kl_cfg80211_change_iface(struct wiphy *wiphy,
 	struct ath6kl_vif *vif = netdev_priv(ndev);
 
 	ath6kl_dbg(ATH6KL_DBG_WLAN_CFG, "%s: type %u\n", __func__, type);
-
-	if (!ath6kl_cfg80211_ready(vif))
-		return -EIO;
 
 	switch (type) {
 	case NL80211_IFTYPE_STATION:
@@ -1453,6 +1472,7 @@ static const u32 cipher_suites[] = {
 	WLAN_CIPHER_SUITE_TKIP,
 	WLAN_CIPHER_SUITE_CCMP,
 	CCKM_KRK_CIPHER_SUITE,
+	WLAN_CIPHER_SUITE_SMS4,
 };
 
 static bool is_rate_legacy(s32 rate)
@@ -1987,7 +2007,7 @@ static int ath6kl_ap_beacon(struct wiphy *wiphy, struct net_device *dev,
 	int ies_len;
 	struct wmi_connect_cmd p;
 	int res;
-	int i;
+	int i, ret;
 
 	ath6kl_dbg(ATH6KL_DBG_WLAN_CFG, "%s: add=%d\n", __func__, add);
 
@@ -2023,7 +2043,6 @@ static int ath6kl_ap_beacon(struct wiphy *wiphy, struct net_device *dev,
 	if (!add)
 		return 0;
 
-
 	ar->ap_mode_bkey.valid = false;
 
 	/* TODO:
@@ -2046,7 +2065,9 @@ static int ath6kl_ap_beacon(struct wiphy *wiphy, struct net_device *dev,
 	if (info->hidden_ssid != NL80211_HIDDEN_SSID_NOT_IN_USE)
 		return -EOPNOTSUPP; /* TODO */
 
-	vif->dot11_auth_mode = OPEN_AUTH;
+	ret = ath6kl_set_auth_type(vif, info->auth_type);
+	if (ret)
+		return ret;
 
 	memset(&p, 0, sizeof(p));
 
@@ -2082,6 +2103,9 @@ static int ath6kl_ap_beacon(struct wiphy *wiphy, struct net_device *dev,
 		case WLAN_CIPHER_SUITE_CCMP:
 			p.prwise_crypto_type |= AES_CRYPT;
 			break;
+		case WLAN_CIPHER_SUITE_SMS4:
+			p.prwise_crypto_type |= WAPI_CRYPT;
+			break;
 		}
 	}
 	if (p.prwise_crypto_type == 0) {
@@ -2100,6 +2124,9 @@ static int ath6kl_ap_beacon(struct wiphy *wiphy, struct net_device *dev,
 		break;
 	case WLAN_CIPHER_SUITE_CCMP:
 		p.grp_crypto_type = AES_CRYPT;
+		break;
+	case WLAN_CIPHER_SUITE_SMS4:
+		p.grp_crypto_type = WAPI_CRYPT;
 		break;
 	default:
 		p.grp_crypto_type = NONE_CRYPT;
@@ -2428,17 +2455,12 @@ struct ath6kl *ath6kl_core_alloc(struct device *dev)
 	}
 
 	ar = wiphy_priv(wiphy);
-	if (!multi_norm_if_support)
-		ar->p2p = !!ath6kl_p2p;
+	ar->p2p = !!ath6kl_p2p;
 	ar->wiphy = wiphy;
 	ar->dev = dev;
 
-	if (multi_norm_if_support)
-		ar->max_norm_iface = 2;
-	else
-		ar->max_norm_iface = 1;
+	ar->vif_max = 1;
 
-	/* FIXME: Remove this once the multivif support is enabled */
 	ar->max_norm_iface = 1;
 
 	spin_lock_init(&ar->lock);
@@ -2460,9 +2482,6 @@ struct ath6kl *ath6kl_core_alloc(struct device *dev)
 	ar->tx_pwr = 0;
 
 	ar->intra_bss = 1;
-	memset(&ar->sc_params, 0, sizeof(ar->sc_params));
-	ar->sc_params.short_scan_ratio = WMI_SHORTSCANRATIO_DEFAULT;
-	ar->sc_params.scan_ctrl_flags = DEFAULT_SCAN_CTRL_FLAGS;
 	ar->lrssi_roam_threshold = DEF_LRSSI_ROAM_THRESHOLD;
 
 	ar->state = ATH6KL_STATE_OFF;

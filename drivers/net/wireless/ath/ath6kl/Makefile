@@ -36,6 +36,7 @@ ath6kl_sdio-$(CONFIG_NL80211_TESTMODE) += testmode.o
 
 obj-$(CONFIG_ATH6KL_USB) += ath6kl_usb.o
 ath6kl_usb-y += debug.o
+ath6kl_usb-y += htc_pipe.o
 ath6kl_usb-y += bmi.o
 ath6kl_usb-y += cfg80211.o
 ath6kl_usb-y += init.o
@@ -43,7 +44,6 @@ ath6kl_usb-y += main.o
 ath6kl_usb-y += txrx.o
 ath6kl_usb-y += wmi.o
 ath6kl_usb-y += usb.o
-ath6kl_usb-y += htc_pipe.o
 ath6kl_usb-$(CONFIG_NL80211_TESTMODE) += testmode.o
 
 ccflags-y += -D__CHECK_ENDIAN__

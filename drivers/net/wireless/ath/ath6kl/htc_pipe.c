@@ -1042,7 +1042,7 @@ static int htc_rx_completion(struct htc_target *context,
 
 	if (netlen < (payload_len + HTC_HDR_LENGTH)) {
 		ath6kl_dbg(ATH6KL_DBG_HTC,
-			   "HTC Rx: insufficient length, got:%d expected =%d\n",
+			   "HTC Rx: insufficient length, got:%d expected =%lu\n",
 			   netlen, payload_len + HTC_HDR_LENGTH);
 		status = -EINVAL;
 		goto free_netbuf;

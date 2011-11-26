@@ -70,6 +70,8 @@ enum ath6kl_fw_ie_type {
 	ATH6KL_FW_IE_RESERVED_RAM_SIZE = 5,
 	ATH6KL_FW_IE_CAPABILITIES = 6,
 	ATH6KL_FW_IE_PATCH_ADDR = 7,
+	ATH6KL_FW_IE_BOARD_ADDR = 8,
+	ATH6KL_FW_IE_VIF_MAX = 9,
 };
 
 enum ath6kl_fw_capability {
@@ -88,42 +90,46 @@ struct ath6kl_fw_ie {
 };
 
 /* AR6003 1.0 definitions */
-#define AR6003_REV1_VERSION                 0x300002ba
+#define AR6003_HW_1_0_VERSION                 0x300002ba
 
 /* AR6003 2.0 definitions */
-#define AR6003_REV2_VERSION                 0x30000384
-#define AR6003_REV2_PATCH_DOWNLOAD_ADDRESS  0x57e910
-#define AR6003_REV2_OTP_FILE                "ath6k/AR6003/hw2.0/otp.bin.z77"
-#define AR6003_REV2_FIRMWARE_FILE           "ath6k/AR6003/hw2.0/athwlan.bin.z77"
-#define AR6003_REV2_TCMD_FIRMWARE_FILE      "ath6k/AR6003/hw2.0/athtcmd_ram.bin"
-#define AR6003_REV2_PATCH_FILE              "ath6k/AR6003/hw2.0/data.patch.bin"
-#define AR6003_REV2_FIRMWARE_2_FILE         "ath6k/AR6003/hw2.0/fw-2.bin"
-#define AR6003_REV2_BOARD_DATA_FILE         "ath6k/AR6003/hw2.0/bdata.bin"
-#define AR6003_REV2_DEFAULT_BOARD_DATA_FILE "ath6k/AR6003/hw2.0/bdata.SD31.bin"
+#define AR6003_HW_2_0_VERSION                 0x30000384
+#define AR6003_HW_2_0_PATCH_DOWNLOAD_ADDRESS  0x57e910
+#define AR6003_HW_2_0_OTP_FILE "ath6k/AR6003/hw2.0/otp.bin.z77"
+#define AR6003_HW_2_0_FIRMWARE_FILE "ath6k/AR6003/hw2.0/athwlan.bin.z77"
+#define AR6003_HW_2_0_TCMD_FIRMWARE_FILE "ath6k/AR6003/hw2.0/athtcmd_ram.bin"
+#define AR6003_HW_2_0_PATCH_FILE "ath6k/AR6003/hw2.0/data.patch.bin"
+#define AR6003_HW_2_0_FIRMWARE_2_FILE "ath6k/AR6003/hw2.0/fw-2.bin"
+#define AR6003_HW_2_0_BOARD_DATA_FILE "ath6k/AR6003/hw2.0/bdata.bin"
+#define AR6003_HW_2_0_DEFAULT_BOARD_DATA_FILE \
+			"ath6k/AR6003/hw2.0/bdata.SD31.bin"
 
 /* AR6003 3.0 definitions */
-#define AR6003_REV3_VERSION                 0x30000582
-#define AR6003_REV3_OTP_FILE                "ath6k/AR6003/hw2.1.1/otp.bin"
-#define AR6003_REV3_FIRMWARE_FILE           "ath6k/AR6003/hw2.1.1/athwlan.bin"
-#define AR6003_REV3_TCMD_FIRMWARE_FILE    "ath6k/AR6003/hw2.1.1/athtcmd_ram.bin"
-#define AR6003_REV3_PATCH_FILE            "ath6k/AR6003/hw2.1.1/data.patch.bin"
-#define AR6003_REV3_FIRMWARE_2_FILE           "ath6k/AR6003/hw2.1.1/fw-2.bin"
-#define AR6003_REV3_BOARD_DATA_FILE       "ath6k/AR6003/hw2.1.1/bdata.bin"
-#define AR6003_REV3_DEFAULT_BOARD_DATA_FILE	\
-	"ath6k/AR6003/hw2.1.1/bdata.SD31.bin"
+#define AR6003_HW_2_1_1_VERSION                 0x30000582
+#define AR6003_HW_2_1_1_OTP_FILE "ath6k/AR6003/hw2.1.1/otp.bin"
+#define AR6003_HW_2_1_1_FIRMWARE_FILE "ath6k/AR6003/hw2.1.1/athwlan.bin"
+#define AR6003_HW_2_1_1_TCMD_FIRMWARE_FILE \
+			"ath6k/AR6003/hw2.1.1/athtcmd_ram.bin"
+#define AR6003_HW_2_1_1_PATCH_FILE "ath6k/AR6003/hw2.1.1/data.patch.bin"
+#define AR6003_HW_2_1_1_FIRMWARE_2_FILE "ath6k/AR6003/hw2.1.1/fw-2.bin"
+#define AR6003_HW_2_1_1_BOARD_DATA_FILE "ath6k/AR6003/hw2.1.1/bdata.bin"
+#define AR6003_HW_2_1_1_DEFAULT_BOARD_DATA_FILE	\
+			"ath6k/AR6003/hw2.1.1/bdata.SD31.bin"
 
 /* AR6004 1.0 definitions */
-#define AR6004_REV1_VERSION                 0x30000623
-#define AR6004_REV1_FIRMWARE_FILE           "ath6k/AR6004/hw1.0/fw.ram.bin"
-#define AR6004_REV1_BOARD_DATA_FILE         "ath6k/AR6004/hw1.0/bdata.bin"
-#define AR6004_REV1_DEFAULT_BOARD_DATA_FILE \
+#define AR6004_HW_1_0_VERSION                 0x30000623
+#define AR6004_HW_1_0_FIRMWARE_2_FILE         "ath6k/AR6004/hw1.0/fw-2.bin"
+#define AR6004_HW_1_0_FIRMWARE_FILE           "ath6k/AR6004/hw1.0/fw.ram.bin"
+#define AR6004_HW_1_0_BOARD_DATA_FILE         "ath6k/AR6004/hw1.0/bdata.bin"
+#define AR6004_HW_1_0_DEFAULT_BOARD_DATA_FILE \
 	"ath6k/AR6004/hw1.0/bdata.DB132.bin"
 
 /* AR6004 1.1 definitions */
-#define AR6004_REV2_VERSION                 0x30000001
-#define AR6004_REV2_FIRMWARE_FILE           "ath6k/AR6004/hw1.1/fw.ram.bin"
-#define AR6004_REV2_BOARD_DATA_FILE         "ath6k/AR6004/hw1.1/bdata.bin"
-#define AR6004_REV2_DEFAULT_BOARD_DATA_FILE \
+#define AR6004_HW_1_1_VERSION                 0x30000001
+#define AR6004_HW_1_1_FIRMWARE_2_FILE         "ath6k/AR6004/hw1.1/fw-2.bin"
+#define AR6004_HW_1_1_FIRMWARE_FILE           "ath6k/AR6004/hw1.1/fw.ram.bin"
+#define AR6004_HW_1_1_BOARD_DATA_FILE         "ath6k/AR6004/hw1.1/bdata.bin"
+#define AR6004_HW_1_1_DEFAULT_BOARD_DATA_FILE \
 	"ath6k/AR6004/hw1.1/bdata.DB132.bin"
 
 /* Per STA data, used in AP mode */
@@ -389,7 +395,16 @@ struct ath6kl_req_key {
 	u8 key_len;
 };
 
-#define MAX_NUM_VIF	1
+enum ath6kl_hif_type {
+	ATH6KL_HIF_TYPE_SDIO,
+	ATH6KL_HIF_TYPE_USB,
+};
+
+/*
+ * Driver's maximum limit, note that some firmwares support only one vif
+ * and the runtime (current) limit must be checked from ar->vif_max.
+ */
+#define ATH6KL_VIF_MAX	3
 
 /* vif flags info */
 enum ath6kl_vif_state {
@@ -403,11 +418,6 @@ enum ath6kl_vif_state {
 	DTIM_PERIOD_AVAIL,
 	WLAN_ENABLED,
 	STATS_UPDATE_PEND,
-};
-
-enum ath6kl_hif_type {
-	ATH6KL_HIF_TYPE_SDIO,
-	ATH6KL_HIF_TYPE_USB,
 };
 
 struct ath6kl_vif {
@@ -493,6 +503,7 @@ struct ath6kl {
 	/* Lock to avoid race in vif_list entries among add/del/traverse */
 	spinlock_t list_lock;
 	u8 num_vif;
+	unsigned int vif_max;
 	u8 max_norm_iface;
 	u8 avail_idx_map;
 	spinlock_t lock;
@@ -531,7 +542,6 @@ struct ath6kl {
 	struct list_head amsdu_rx_buffer_queue;
 	u8 rx_meta_ver;
 	enum wlan_low_pwr_state wlan_pwr_state;
-	struct wmi_scan_params_cmd sc_params;
 	u8 mac_addr[ETH_ALEN];
 #define AR_MCAST_FILTER_MAC_ADDR_SIZE  4
 	struct {
@@ -539,12 +549,23 @@ struct ath6kl {
 		size_t rx_report_len;
 	} tm;
 
-	struct {
+	struct ath6kl_hw {
+		u32 id;
+		const char *name;
 		u32 dataset_patch_addr;
 		u32 app_load_addr;
 		u32 app_start_override_addr;
 		u32 board_ext_data_addr;
 		u32 reserved_ram_size;
+		u32 board_addr;
+
+		const char *fw_otp;
+		const char *fw;
+		const char *fw_tcmd;
+		const char *fw_patch;
+		const char *fw_api2;
+		const char *fw_board;
+		const char *fw_default_board;
 	} hw;
 
 	u16 conf_flags;
@@ -628,8 +649,6 @@ enum htc_send_full_action ath6kl_tx_queue_full(struct htc_target *target,
 					       struct htc_packet *packet);
 void ath6kl_stop_txrx(struct ath6kl *ar);
 void ath6kl_cleanup_amsdu_rxbufs(struct ath6kl *ar);
-int ath6kl_access_datadiag(struct ath6kl *ar, u32 address,
-			   u8 *data, u32 length, bool read);
 int ath6kl_diag_write32(struct ath6kl *ar, u32 address, __le32 value);
 int ath6kl_diag_write(struct ath6kl *ar, u32 address, void *data, u32 length);
 int ath6kl_diag_read32(struct ath6kl *ar, u32 address, u32 *value);
