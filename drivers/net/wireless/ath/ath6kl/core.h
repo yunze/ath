@@ -76,6 +76,7 @@ enum ath6kl_fw_ie_type {
 
 enum ath6kl_fw_capability {
 	ATH6KL_FW_CAPABILITY_HOST_P2P = 0,
+	ATH6KL_FW_CAPABILITY_SCHED_SCAN = 1,
 
 	/*
 	 * Firmware is capable of supporting P2P mgmt operations on a
@@ -454,7 +455,10 @@ struct ath6kl_vif {
 	struct ath6kl_wep_key wep_key_list[WMI_MAX_KEY_INDEX + 1];
 	struct ath6kl_key keys[WMI_MAX_KEY_INDEX + 1];
 	struct aggr_info *aggr_cntxt;
+
 	struct timer_list disconnect_timer;
+	struct timer_list sched_scan_timer;
+
 	struct cfg80211_scan_request *scan_req;
 	enum sme_state sme_state;
 	int reconnect_flag;
@@ -471,6 +475,8 @@ struct ath6kl_vif {
 
 #define WOW_LIST_ID		0
 #define WOW_HOST_REQ_DELAY	500 /* ms */
+
+#define ATH6KL_SCHED_SCAN_RESULT_DELAY 5000 /* ms */
 
 /* Flag info */
 enum ath6kl_dev_state {
@@ -490,6 +496,7 @@ enum ath6kl_state {
 	ATH6KL_STATE_DEEPSLEEP,
 	ATH6KL_STATE_CUTPOWER,
 	ATH6KL_STATE_WOW,
+	ATH6KL_STATE_SCHED_SCAN,
 };
 
 struct ath6kl {
