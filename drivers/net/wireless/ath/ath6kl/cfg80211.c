@@ -125,6 +125,37 @@ static struct ieee80211_supported_band ath6kl_band_5ghz = {
 
 #define CCKM_KRK_CIPHER_SUITE 0x004096ff /* use for KRK */
 
+/* returns true if scheduled scan was stopped */
+static bool __ath6kl_cfg80211_sscan_stop(struct ath6kl_vif *vif)
+{
+	struct ath6kl *ar = vif->ar;
+
+	if (ar->state != ATH6KL_STATE_SCHED_SCAN)
+		return false;
+
+	del_timer_sync(&vif->sched_scan_timer);
+
+	ath6kl_wmi_set_host_sleep_mode_cmd(ar->wmi, vif->fw_vif_idx,
+					   ATH6KL_HOST_MODE_AWAKE);
+
+	ar->state = ATH6KL_STATE_ON;
+
+	return true;
+}
+
+static void ath6kl_cfg80211_sscan_disable(struct ath6kl_vif *vif)
+{
+	struct ath6kl *ar = vif->ar;
+	bool stopped;
+
+	stopped = __ath6kl_cfg80211_sscan_stop(vif);
+
+	if (!stopped)
+		return;
+
+	cfg80211_sched_scan_stopped(ar->wiphy);
+}
+
 static int ath6kl_set_wpa_version(struct ath6kl_vif *vif,
 				  enum nl80211_wpa_versions wpa_version)
 {
@@ -384,6 +415,8 @@ static int ath6kl_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 	struct ath6kl *ar = ath6kl_priv(dev);
 	struct ath6kl_vif *vif = netdev_priv(dev);
 	int status;
+
+	ath6kl_cfg80211_sscan_disable(vif);
 
 	vif->sme_state = SME_CONNECTING;
 
@@ -706,11 +739,13 @@ void ath6kl_cfg80211_connect_event(struct ath6kl_vif *vif, u16 channel,
 static int ath6kl_cfg80211_disconnect(struct wiphy *wiphy,
 				      struct net_device *dev, u16 reason_code)
 {
-	struct ath6kl *ar = (struct ath6kl *)ath6kl_priv(dev);
+	struct ath6kl *ar = ath6kl_priv(dev);
 	struct ath6kl_vif *vif = netdev_priv(dev);
 
 	ath6kl_dbg(ATH6KL_DBG_WLAN_CFG, "%s: reason=%u\n", __func__,
 		   reason_code);
+
+	ath6kl_cfg80211_sscan_disable(vif);
 
 	if (!ath6kl_cfg80211_ready(vif))
 		return -EIO;
@@ -804,7 +839,7 @@ void ath6kl_cfg80211_disconnect_event(struct ath6kl_vif *vif, u8 reason,
 static int ath6kl_cfg80211_scan(struct wiphy *wiphy, struct net_device *ndev,
 				struct cfg80211_scan_request *request)
 {
-	struct ath6kl *ar = (struct ath6kl *)ath6kl_priv(ndev);
+	struct ath6kl *ar = ath6kl_priv(ndev);
 	struct ath6kl_vif *vif = netdev_priv(ndev);
 	s8 n_channels = 0;
 	u16 *channels = NULL;
@@ -813,6 +848,8 @@ static int ath6kl_cfg80211_scan(struct wiphy *wiphy, struct net_device *ndev,
 
 	if (!ath6kl_cfg80211_ready(vif))
 		return -EIO;
+
+	ath6kl_cfg80211_sscan_disable(vif);
 
 	if (!ar->usr_bss_filter) {
 		clear_bit(CLEAR_BSSFILTER_ON_BEACON, &vif->flags);
@@ -839,6 +876,10 @@ static int ath6kl_cfg80211_scan(struct wiphy *wiphy, struct net_device *ndev,
 						  request->ssids[i].ssid);
 	}
 
+	/*
+	 * FIXME: we should clear the IE in fw if it's not set so just
+	 * remove the check altogether
+	 */
 	if (request->ie) {
 		ret = ath6kl_wmi_set_appie_cmd(ar->wmi, vif->fw_vif_idx,
 					       WMI_FRAME_PROBE_REQ,
@@ -920,7 +961,7 @@ static int ath6kl_cfg80211_add_key(struct wiphy *wiphy, struct net_device *ndev,
 				   const u8 *mac_addr,
 				   struct key_params *params)
 {
-	struct ath6kl *ar = (struct ath6kl *)ath6kl_priv(ndev);
+	struct ath6kl *ar = ath6kl_priv(ndev);
 	struct ath6kl_vif *vif = netdev_priv(ndev);
 	struct ath6kl_key *key = NULL;
 	u8 key_usage;
@@ -1046,7 +1087,7 @@ static int ath6kl_cfg80211_del_key(struct wiphy *wiphy, struct net_device *ndev,
 				   u8 key_index, bool pairwise,
 				   const u8 *mac_addr)
 {
-	struct ath6kl *ar = (struct ath6kl *)ath6kl_priv(ndev);
+	struct ath6kl *ar = ath6kl_priv(ndev);
 	struct ath6kl_vif *vif = netdev_priv(ndev);
 
 	ath6kl_dbg(ATH6KL_DBG_WLAN_CFG, "%s: index %d\n", __func__, key_index);
@@ -1112,7 +1153,7 @@ static int ath6kl_cfg80211_set_default_key(struct wiphy *wiphy,
 					   u8 key_index, bool unicast,
 					   bool multicast)
 {
-	struct ath6kl *ar = (struct ath6kl *)ath6kl_priv(ndev);
+	struct ath6kl *ar = ath6kl_priv(ndev);
 	struct ath6kl_vif *vif = netdev_priv(ndev);
 	struct ath6kl_key *key = NULL;
 	u8 key_usage;
@@ -1800,7 +1841,7 @@ int ath6kl_cfg80211_suspend(struct ath6kl *ar,
 
 	case ATH6KL_CFG_SUSPEND_DEEPSLEEP:
 
-		ath6kl_cfg80211_stop(ar);
+		ath6kl_cfg80211_stop_all(ar);
 
 		/* save the current power mode before enabling power save */
 		ar->wmi->saved_pwr_mode = ar->wmi->pwr_mode;
@@ -1817,7 +1858,7 @@ int ath6kl_cfg80211_suspend(struct ath6kl *ar,
 
 	case ATH6KL_CFG_SUSPEND_CUTPOWER:
 
-		ath6kl_cfg80211_stop(ar);
+		ath6kl_cfg80211_stop_all(ar);
 
 		if (ar->state == ATH6KL_STATE_OFF) {
 			ath6kl_dbg(ATH6KL_DBG_SUSPEND,
@@ -1835,6 +1876,13 @@ int ath6kl_cfg80211_suspend(struct ath6kl *ar,
 
 		ar->state = ATH6KL_STATE_CUTPOWER;
 
+		break;
+
+	case ATH6KL_CFG_SUSPEND_SCHED_SCAN:
+		/*
+		 * Nothing needed for schedule scan, firmware is already in
+		 * wow mode and sleeping most of the time.
+		 */
 		break;
 
 	default:
@@ -1883,6 +1931,9 @@ int ath6kl_cfg80211_resume(struct ath6kl *ar)
 			ath6kl_warn("Failed to boot hw in resume: %d\n", ret);
 			return ret;
 		}
+		break;
+
+	case ATH6KL_STATE_SCHED_SCAN:
 		break;
 
 	default:
@@ -2331,6 +2382,90 @@ static void ath6kl_mgmt_frame_register(struct wiphy *wiphy,
 	}
 }
 
+static int ath6kl_cfg80211_sscan_start(struct wiphy *wiphy,
+			struct net_device *dev,
+			struct cfg80211_sched_scan_request *request)
+{
+	struct ath6kl *ar = ath6kl_priv(dev);
+	struct ath6kl_vif *vif = netdev_priv(dev);
+	u16 interval;
+	int ret;
+	u8 i;
+
+	if (ar->state != ATH6KL_STATE_ON)
+		return -EIO;
+
+	if (vif->sme_state != SME_DISCONNECTED)
+		return -EBUSY;
+
+	for (i = 0; i < ar->wiphy->max_sched_scan_ssids; i++) {
+		ath6kl_wmi_probedssid_cmd(ar->wmi, vif->fw_vif_idx,
+					  i, DISABLE_SSID_FLAG,
+					  0, NULL);
+	}
+
+	/* fw uses seconds, also make sure that it's >0 */
+	interval = max_t(u16, 1, request->interval / 1000);
+
+	ath6kl_wmi_scanparams_cmd(ar->wmi, vif->fw_vif_idx,
+				  interval, interval,
+				  10, 0, 0, 0, 3, 0, 0, 0);
+
+	if (request->n_ssids && request->ssids[0].ssid_len) {
+		for (i = 0; i < request->n_ssids; i++) {
+			ath6kl_wmi_probedssid_cmd(ar->wmi, vif->fw_vif_idx,
+						  i, SPECIFIC_SSID_FLAG,
+						  request->ssids[i].ssid_len,
+						  request->ssids[i].ssid);
+		}
+	}
+
+	ret = ath6kl_wmi_set_wow_mode_cmd(ar->wmi, vif->fw_vif_idx,
+					  ATH6KL_WOW_MODE_ENABLE,
+					  WOW_FILTER_SSID,
+					  WOW_HOST_REQ_DELAY);
+	if (ret) {
+		ath6kl_warn("Failed to enable wow with ssid filter: %d\n", ret);
+		return ret;
+	}
+
+	/* this also clears IE in fw if it's not set */
+	ret = ath6kl_wmi_set_appie_cmd(ar->wmi, vif->fw_vif_idx,
+				       WMI_FRAME_PROBE_REQ,
+				       request->ie, request->ie_len);
+	if (ret) {
+		ath6kl_warn("Failed to set probe request IE for scheduled scan: %d",
+			    ret);
+		return ret;
+	}
+
+	ret = ath6kl_wmi_set_host_sleep_mode_cmd(ar->wmi, vif->fw_vif_idx,
+						 ATH6KL_HOST_MODE_ASLEEP);
+	if (ret) {
+		ath6kl_warn("Failed to enable host sleep mode for sched scan: %d\n",
+			    ret);
+		return ret;
+	}
+
+	ar->state = ATH6KL_STATE_SCHED_SCAN;
+
+	return ret;
+}
+
+static int ath6kl_cfg80211_sscan_stop(struct wiphy *wiphy,
+				      struct net_device *dev)
+{
+	struct ath6kl_vif *vif = netdev_priv(dev);
+	bool stopped;
+
+	stopped = __ath6kl_cfg80211_sscan_stop(vif);
+
+	if (!stopped)
+		return -EIO;
+
+	return 0;
+}
+
 static const struct ieee80211_txrx_stypes
 ath6kl_mgmt_stypes[NUM_NL80211_IFTYPES] = {
 	[NL80211_IFTYPE_STATION] = {
@@ -2388,13 +2523,48 @@ static struct cfg80211_ops ath6kl_cfg80211_ops = {
 	.cancel_remain_on_channel = ath6kl_cancel_remain_on_channel,
 	.mgmt_tx = ath6kl_mgmt_tx,
 	.mgmt_frame_register = ath6kl_mgmt_frame_register,
+	.sched_scan_start = ath6kl_cfg80211_sscan_start,
+	.sched_scan_stop = ath6kl_cfg80211_sscan_stop,
 };
 
-void ath6kl_cfg80211_stop(struct ath6kl *ar)
+void ath6kl_cfg80211_stop(struct ath6kl_vif *vif)
+{
+	ath6kl_cfg80211_sscan_disable(vif);
+
+	switch (vif->sme_state) {
+	case SME_DISCONNECTED:
+		break;
+	case SME_CONNECTING:
+		cfg80211_connect_result(vif->ndev, vif->bssid, NULL, 0,
+					NULL, 0,
+					WLAN_STATUS_UNSPECIFIED_FAILURE,
+					GFP_KERNEL);
+		break;
+	case SME_CONNECTED:
+		cfg80211_disconnected(vif->ndev, 0, NULL, 0, GFP_KERNEL);
+		break;
+	}
+
+	if (test_bit(CONNECTED, &vif->flags) ||
+	    test_bit(CONNECT_PEND, &vif->flags))
+		ath6kl_wmi_disconnect_cmd(vif->ar->wmi, vif->fw_vif_idx);
+
+	vif->sme_state = SME_DISCONNECTED;
+	clear_bit(CONNECTED, &vif->flags);
+	clear_bit(CONNECT_PEND, &vif->flags);
+
+	/* disable scanning */
+	if (ath6kl_wmi_scanparams_cmd(vif->ar->wmi, vif->fw_vif_idx, 0xFFFF,
+				      0, 0, 0, 0, 0, 0, 0, 0, 0) != 0)
+		ath6kl_warn("failed to disable scan during stop\n");
+
+	ath6kl_cfg80211_scan_complete_event(vif, true);
+}
+
+void ath6kl_cfg80211_stop_all(struct ath6kl *ar)
 {
 	struct ath6kl_vif *vif;
 
-	/* FIXME: for multi vif */
 	vif = ath6kl_vif_first(ar);
 	if (!vif) {
 		/* save the current power mode before enabling power save */
@@ -2406,39 +2576,13 @@ void ath6kl_cfg80211_stop(struct ath6kl *ar)
 		return;
 	}
 
-	switch (vif->sme_state) {
-	case SME_CONNECTING:
-		cfg80211_connect_result(vif->ndev, vif->bssid, NULL, 0,
-					NULL, 0,
-					WLAN_STATUS_UNSPECIFIED_FAILURE,
-					GFP_KERNEL);
-		break;
-	case SME_CONNECTED:
-	default:
-		/*
-		 * FIXME: oddly enough smeState is in DISCONNECTED during
-		 * suspend, why? Need to send disconnected event in that
-		 * state.
-		 */
-		cfg80211_disconnected(vif->ndev, 0, NULL, 0, GFP_KERNEL);
-		break;
-	}
-
-	if (test_bit(CONNECTED, &vif->flags) ||
-	    test_bit(CONNECT_PEND, &vif->flags))
-		ath6kl_wmi_disconnect_cmd(ar->wmi, vif->fw_vif_idx);
-
-	vif->sme_state = SME_DISCONNECTED;
-	clear_bit(CONNECTED, &vif->flags);
-	clear_bit(CONNECT_PEND, &vif->flags);
-
-	/* disable scanning */
-	if (ath6kl_wmi_scanparams_cmd(ar->wmi, vif->fw_vif_idx, 0xFFFF, 0, 0,
-				      0, 0, 0, 0, 0, 0, 0) != 0)
-		printk(KERN_WARNING "ath6kl: failed to disable scan "
-		       "during suspend\n");
-
-	ath6kl_cfg80211_scan_complete_event(vif, true);
+	/*
+	 * FIXME: we should take ar->list_lock to protect changes in the
+	 * vif_list, but that's not trivial to do as ath6kl_cfg80211_stop()
+	 * sleeps.
+	 */
+	list_for_each_entry(vif, &ar->vif_list, list)
+		ath6kl_cfg80211_stop(vif);
 }
 
 struct ath6kl *ath6kl_core_alloc(struct device *dev)
@@ -2543,6 +2687,8 @@ int ath6kl_register_ieee80211_hw(struct ath6kl *ar)
 	wiphy->wowlan.pattern_min_len = 1;
 	wiphy->wowlan.pattern_max_len = WOW_PATTERN_SIZE;
 
+	wiphy->max_sched_scan_ssids = 10;
+
 	ret = wiphy_register(wiphy);
 	if (ret < 0) {
 		ath6kl_err("couldn't register wiphy device\n");
@@ -2562,6 +2708,9 @@ static int ath6kl_init_if_data(struct ath6kl_vif *vif)
 
 	setup_timer(&vif->disconnect_timer, disconnect_timer_handler,
 		    (unsigned long) vif->ndev);
+	setup_timer(&vif->sched_scan_timer, ath6kl_wmi_sscan_timer,
+		    (unsigned long) vif);
+
 	set_bit(WMM_ENABLED, &vif->flags);
 	spin_lock_init(&vif->if_lock);
 
