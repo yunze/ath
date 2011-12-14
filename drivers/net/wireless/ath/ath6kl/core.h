@@ -78,6 +78,13 @@ enum ath6kl_fw_capability {
 	ATH6KL_FW_CAPABILITY_HOST_P2P = 0,
 	ATH6KL_FW_CAPABILITY_SCHED_SCAN = 1,
 
+	/*
+	 * Firmware is capable of supporting P2P mgmt operations on a
+	 * station interface. After group formation, the station
+	 * interface will become a P2P client/GO interface as the case may be
+	 */
+	ATH6KL_FW_CAPABILITY_STA_P2PDEV_DUPLEX,
+
 	/* this needs to be last */
 	ATH6KL_FW_CAPABILITY_MAX,
 };
@@ -565,6 +572,8 @@ struct ath6kl {
 		u32 board_ext_data_addr;
 		u32 reserved_ram_size;
 		u32 board_addr;
+		u32 refclk_hz;
+		u32 uarttx_pin;
 
 		const char *fw_otp;
 		const char *fw;
