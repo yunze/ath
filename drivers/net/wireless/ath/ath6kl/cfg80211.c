@@ -15,6 +15,7 @@
  */
 
 #include <linux/moduleparam.h>
+#include <linux/inetdevice.h>
 
 #include "core.h"
 #include "cfg80211.h"
@@ -461,13 +462,13 @@ static int ath6kl_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 		}
 	}
 
-	if (sme->ie && (sme->ie_len > 0)) {
-		status = ath6kl_set_assoc_req_ies(vif, sme->ie, sme->ie_len);
-		if (status) {
-			up(&ar->sem);
-			return status;
-		}
-	} else
+	status = ath6kl_set_assoc_req_ies(vif, sme->ie, sme->ie_len);
+	if (status) {
+		up(&ar->sem);
+		return status;
+	}
+
+	if (sme->ie == NULL || sme->ie_len == 0)
 		ar->connect_ctrl_flags &= ~CONNECT_WPS_FLAG;
 
 	if (test_bit(CONNECTED, &vif->flags) &&
@@ -605,11 +606,13 @@ static int ath6kl_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 	return 0;
 }
 
-static int ath6kl_add_bss_if_needed(struct ath6kl_vif *vif,
-				    enum network_type nw_type,
-				    const u8 *bssid,
-				    struct ieee80211_channel *chan,
-				    const u8 *beacon_ie, size_t beacon_ie_len)
+static struct cfg80211_bss *
+ath6kl_add_bss_if_needed(struct ath6kl_vif *vif,
+			 enum network_type nw_type,
+			 const u8 *bssid,
+			 struct ieee80211_channel *chan,
+			 const u8 *beacon_ie,
+			 size_t beacon_ie_len)
 {
 	struct ath6kl *ar = vif->ar;
 	struct cfg80211_bss *bss;
@@ -638,7 +641,7 @@ static int ath6kl_add_bss_if_needed(struct ath6kl_vif *vif,
 		 */
 		ie = kmalloc(2 + vif->ssid_len + beacon_ie_len, GFP_KERNEL);
 		if (ie == NULL)
-			return -ENOMEM;
+			return NULL;
 		ie[0] = WLAN_EID_SSID;
 		ie[1] = vif->ssid_len;
 		memcpy(ie + 2, vif->ssid, vif->ssid_len);
@@ -652,15 +655,9 @@ static int ath6kl_add_bss_if_needed(struct ath6kl_vif *vif,
 				   "cfg80211\n", bssid);
 		kfree(ie);
 	} else
-		ath6kl_dbg(ATH6KL_DBG_WLAN_CFG, "cfg80211 already has a bss "
-			   "entry\n");
+		ath6kl_dbg(ATH6KL_DBG_WLAN_CFG, "cfg80211 already has a bss\n");
 
-	if (bss == NULL)
-		return -ENOMEM;
-
-	cfg80211_put_bss(bss);
-
-	return 0;
+	return bss;
 }
 
 void ath6kl_cfg80211_connect_event(struct ath6kl_vif *vif, u16 channel,
@@ -672,6 +669,7 @@ void ath6kl_cfg80211_connect_event(struct ath6kl_vif *vif, u16 channel,
 {
 	struct ieee80211_channel *chan;
 	struct ath6kl *ar = vif->ar;
+	struct cfg80211_bss *bss;
 
 	/* capinfo + listen interval */
 	u8 assoc_req_ie_offset = sizeof(u16) + sizeof(u16);
@@ -712,8 +710,9 @@ void ath6kl_cfg80211_connect_event(struct ath6kl_vif *vif, u16 channel,
 
 	chan = ieee80211_get_channel(ar->wiphy, (int) channel);
 
-	if (ath6kl_add_bss_if_needed(vif, nw_type, bssid, chan, assoc_info,
-				     beacon_ie_len) < 0) {
+	bss = ath6kl_add_bss_if_needed(vif, nw_type, bssid, chan,
+				       assoc_info, beacon_ie_len);
+	if (!bss) {
 		ath6kl_err("could not add cfg80211 bss entry\n");
 		return;
 	}
@@ -722,6 +721,7 @@ void ath6kl_cfg80211_connect_event(struct ath6kl_vif *vif, u16 channel,
 		ath6kl_dbg(ATH6KL_DBG_WLAN_CFG, "ad-hoc %s selected\n",
 			   nw_type & ADHOC_CREATOR ? "creator" : "joiner");
 		cfg80211_ibss_joined(vif->ndev, bssid, GFP_KERNEL);
+		cfg80211_put_bss(bss);
 		return;
 	}
 
@@ -732,11 +732,11 @@ void ath6kl_cfg80211_connect_event(struct ath6kl_vif *vif, u16 channel,
 					assoc_req_ie, assoc_req_len,
 					assoc_resp_ie, assoc_resp_len,
 					WLAN_STATUS_SUCCESS, GFP_KERNEL);
+		cfg80211_put_bss(bss);
 	} else if (vif->sme_state == SME_CONNECTED) {
 		/* inform roam event to cfg80211 */
-		cfg80211_roamed(vif->ndev, chan, bssid,
-				assoc_req_ie, assoc_req_len,
-				assoc_resp_ie, assoc_resp_len, GFP_KERNEL);
+		cfg80211_roamed_bss(vif->ndev, bss, assoc_req_ie, assoc_req_len,
+				    assoc_resp_ie, assoc_resp_len, GFP_KERNEL);
 	}
 }
 
@@ -1730,11 +1730,14 @@ static int ath6kl_flush_pmksa(struct wiphy *wiphy, struct net_device *netdev)
 
 static int ath6kl_wow_suspend(struct ath6kl *ar, struct cfg80211_wowlan *wow)
 {
+	struct in_device *in_dev;
+	struct in_ifaddr *ifa;
 	struct ath6kl_vif *vif;
 	int ret, pos, left;
 	u32 filter = 0;
 	u16 i;
-	u8 mask[WOW_MASK_SIZE];
+	u8 mask[WOW_MASK_SIZE], index = 0;
+	__be32 ips[MAX_IP_ADDRS];
 
 	vif = ath6kl_vif_first(ar);
 	if (!vif)
@@ -1781,6 +1784,33 @@ static int ath6kl_wow_suspend(struct ath6kl *ar, struct cfg80211_wowlan *wow)
 			return ret;
 	}
 
+	/* Setup own IP addr for ARP agent. */
+	in_dev = __in_dev_get_rtnl(vif->ndev);
+	if (!in_dev)
+		goto skip_arp;
+
+	ifa = in_dev->ifa_list;
+	memset(&ips, 0, sizeof(ips));
+
+	/* Configure IP addr only if IP address count < MAX_IP_ADDRS */
+	while (index < MAX_IP_ADDRS && ifa) {
+		ips[index] = ifa->ifa_local;
+		ifa = ifa->ifa_next;
+		index++;
+	}
+
+	if (ifa) {
+		ath6kl_err("total IP addr count is exceeding fw limit\n");
+		return -EINVAL;
+	}
+
+	ret = ath6kl_wmi_set_ip_cmd(ar->wmi, vif->fw_vif_idx, ips[0], ips[1]);
+	if (ret) {
+		ath6kl_err("fail to setup ip for arp agent\n");
+		return ret;
+	}
+
+skip_arp:
 	if (wow->disconnect)
 		filter |= WOW_FILTER_OPTION_NWK_DISASSOC;
 
@@ -2014,7 +2044,18 @@ static int ath6kl_set_channel(struct wiphy *wiphy, struct net_device *dev,
 			      struct ieee80211_channel *chan,
 			      enum nl80211_channel_type channel_type)
 {
-	struct ath6kl_vif *vif = netdev_priv(dev);
+	struct ath6kl_vif *vif;
+
+	/*
+	 * 'dev' could be NULL if a channel change is required for the hardware
+	 * device itself, instead of a particular VIF.
+	 *
+	 * FIXME: To be handled properly when monitor mode is supported.
+	 */
+	if (!dev)
+		return -EBUSY;
+
+	vif = netdev_priv(dev);
 
 	if (!ath6kl_cfg80211_ready(vif))
 		return -EIO;
