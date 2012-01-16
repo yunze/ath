@@ -493,6 +493,7 @@ struct ath6kl {
 
 	struct ath6kl_bmi bmi;
 	const struct ath6kl_hif_ops *hif_ops;
+	const struct ath6kl_htc_ops *htc_ops;
 	struct wmi *wmi;
 	int tx_pending[ENDPOINT_MAX];
 	int total_tx_data_pend;
@@ -715,5 +716,7 @@ void ath6kl_cleanup_vif(struct ath6kl_vif *vif, bool wmi_ready);
 int ath6kl_init_hw_start(struct ath6kl *ar);
 int ath6kl_init_hw_stop(struct ath6kl *ar);
 void ath6kl_check_wow_status(struct ath6kl *ar);
+void ath6kl_htc_pipe_attach(struct ath6kl *ar);
+void ath6kl_htc_mbox_attach(struct ath6kl *ar);
 
 #endif /* CORE_H */

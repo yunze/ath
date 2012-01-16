@@ -21,6 +21,10 @@
 #define HTC_PACKET_CONTAINER_ALLOCATION 32
 #define HTC_CONTROL_BUFFER_SIZE (HTC_MAX_CTRL_MSG_LEN + HTC_HDR_LENGTH)
 
+static int ath6kl_htc_pipe_tx(struct htc_target *handle,
+	struct htc_packet *packet);
+static void ath6kl_htc_pipe_cleanup(struct htc_target *handle);
+
 /* htc pipe tx path */
 static inline void restore_tx_packet(struct htc_packet *packet)
 {
@@ -1042,7 +1046,7 @@ static int htc_rx_completion(struct htc_target *context,
 
 	if (netlen < (payload_len + HTC_HDR_LENGTH)) {
 		ath6kl_dbg(ATH6KL_DBG_HTC,
-			   "HTC Rx: insufficient length, got:%d expected =%lu\n",
+			   "HTC Rx: insufficient length, got:%d expected =%u\n",
 			   netlen, payload_len + HTC_HDR_LENGTH);
 		status = -EINVAL;
 		goto free_netbuf;
@@ -1267,7 +1271,7 @@ static u8 htc_get_credit_alloc(struct htc_target *target, u16 service_id)
 	return allocation;
 }
 
-int ath6kl_htc_conn_service(struct htc_target *handle,
+static int ath6kl_htc_pipe_conn_service(struct htc_target *handle,
 		     struct htc_service_connect_req *conn_req,
 		     struct htc_service_connect_resp *conn_resp)
 {
@@ -1348,7 +1352,7 @@ int ath6kl_htc_conn_service(struct htc_target *handle,
 				 length,
 				 ENDPOINT_0, HTC_SERVICE_TX_PACKET_TAG);
 
-		status = ath6kl_htc_tx(handle, packet);
+		status = ath6kl_htc_pipe_tx(handle, packet);
 		/* we don't own it anymore */
 		packet = NULL;
 		if (status != 0)
@@ -1460,7 +1464,7 @@ free_packet:
 }
 
 /* htc export functions */
-void *ath6kl_htc_create(struct ath6kl *ar)
+void *ath6kl_htc_pipe_create(struct ath6kl *ar)
 {
 	int status = 0;
 	struct hif_callbacks htc_callbacks;
@@ -1520,14 +1524,14 @@ void *ath6kl_htc_create(struct ath6kl *ar)
 fail_htc_create:
 	if (status != 0) {
 		if (target != NULL)
-			ath6kl_htc_cleanup((struct htc_target *)target);
+			ath6kl_htc_pipe_cleanup((struct htc_target *)target);
 		target = NULL;
 	}
 	return (void *)target;
 }
 
 /* cleanup the HTC instance */
-void ath6kl_htc_cleanup(struct htc_target *handle)
+static void ath6kl_htc_pipe_cleanup(struct htc_target *handle)
 {
 	struct htc_packet *packet;
 	struct ath6kl *ar = handle->dev->ar;
@@ -1547,7 +1551,7 @@ void ath6kl_htc_cleanup(struct htc_target *handle)
 	kfree(target);
 }
 
-int ath6kl_htc_start(struct htc_target *handle)
+static int ath6kl_htc_pipe_start(struct htc_target *handle)
 {
 	struct sk_buff *netbuf;
 	struct htc_target *target = (struct htc_target *) handle;
@@ -1585,10 +1589,10 @@ int ath6kl_htc_start(struct htc_target *handle)
 			 ENDPOINT_0, HTC_SERVICE_TX_PACKET_TAG);
 
 	target->htc_flags |= HTC_OP_STATE_SETUP_COMPLETE;
-	return ath6kl_htc_tx(handle, packet);
+	return ath6kl_htc_pipe_tx(handle, packet);
 }
 
-void ath6kl_htc_stop(struct htc_target *handle)
+static void ath6kl_htc_pipe_stop(struct htc_target *handle)
 {
 	struct ath6kl *ar = handle->dev->ar;
 	struct htc_target *target = (struct htc_target *) handle;
@@ -1607,8 +1611,8 @@ void ath6kl_htc_stop(struct htc_target *handle)
 	target->htc_flags &= ~HTC_OP_STATE_SETUP_COMPLETE;
 }
 
-int ath6kl_htc_get_rxbuf_num(struct htc_target *htc_context,
-		      enum htc_endpoint_id endpoint)
+static int ath6kl_htc_pipe_get_rxbuf_num(struct htc_target *htc_context,
+		enum htc_endpoint_id endpoint)
 {
 	struct htc_target *target =
 	    (struct htc_target *) htc_context;
@@ -1621,7 +1625,8 @@ int ath6kl_htc_get_rxbuf_num(struct htc_target *htc_context,
 	return num;
 }
 
-int ath6kl_htc_tx(struct htc_target *handle, struct htc_packet *packet)
+static int ath6kl_htc_pipe_tx(struct htc_target *handle,
+		struct htc_packet *packet)
 {
 	struct list_head queue;
 	ath6kl_dbg(ATH6KL_DBG_HTC,
@@ -1634,7 +1639,7 @@ int ath6kl_htc_tx(struct htc_target *handle, struct htc_packet *packet)
 	return htc_send_packets_multiple(handle, &queue);
 }
 
-int ath6kl_htc_wait_target(struct htc_target *handle)
+static int ath6kl_htc_pipe_wait_target(struct htc_target *handle)
 {
 	int status = 0;
 	struct ath6kl *ar = handle->dev->ar;
@@ -1691,11 +1696,11 @@ int ath6kl_htc_wait_target(struct htc_target *handle)
 	connect.svc_id = HTC_CTRL_RSVD_SVC;
 
 	/* connect fake service */
-	status = ath6kl_htc_conn_service((void *)target, &connect, &resp);
+	status = ath6kl_htc_pipe_conn_service((void *)target, &connect, &resp);
 	return status;
 }
 
-void ath6kl_htc_flush_txep(struct htc_target *handle,
+static void ath6kl_htc_pipe_flush_txep(struct htc_target *handle,
 		enum htc_endpoint_id Endpoint, u16 Tag)
 {
 	struct htc_target *target = (struct htc_target *) handle;
@@ -1710,8 +1715,8 @@ void ath6kl_htc_flush_txep(struct htc_target *handle,
 	htc_flush_tx_endpoint(target, ep, Tag);
 }
 
-int ath6kl_htc_add_rxbuf_multiple(struct htc_target *handle,
-			   struct list_head *pkt_queue)
+static int ath6kl_htc_pipe_add_rxbuf_multiple(struct htc_target *handle,
+		struct list_head *pkt_queue)
 {
 	struct htc_target *target = (struct htc_target *) handle;
 	struct htc_endpoint *ep;
@@ -1759,7 +1764,7 @@ int ath6kl_htc_add_rxbuf_multiple(struct htc_target *handle,
 	return status;
 }
 
-void ath6kl_htc_indicate_activity_change(
+void ath6kl_htc_pipe_indicate_activity_change(
 				struct htc_target *handle,
 				enum htc_endpoint_id Endpoint,
 				bool Active)
@@ -1767,7 +1772,7 @@ void ath6kl_htc_indicate_activity_change(
 	/* TODO */
 }
 
-void ath6kl_htc_flush_rx_buf(struct htc_target *target)
+static void ath6kl_htc_pipe_flush_rx_buf(struct htc_target *target)
 {
 	/* TODO */
 }
@@ -1782,8 +1787,29 @@ void ath6kl_htc_set_credit_dist(struct htc_target *target,
 	 */
 }
 
-int ath6kl_credit_setup(void *htc_handle,
+static int ath6kl_htc_pipe_credit_setup(struct htc_target *target,
 			struct ath6kl_htc_credit_info *cred_info)
 {
 	return 0;
+}
+
+static const struct ath6kl_htc_ops ath6kl_htc_pipe_ops = {
+	.create = ath6kl_htc_pipe_create,
+	.wait_target = ath6kl_htc_pipe_wait_target,
+	.start = ath6kl_htc_pipe_start,
+	.conn_service = ath6kl_htc_pipe_conn_service,
+	.tx = ath6kl_htc_pipe_tx,
+	.stop = ath6kl_htc_pipe_stop,
+	.cleanup = ath6kl_htc_pipe_cleanup,
+	.flush_txep = ath6kl_htc_pipe_flush_txep,
+	.flush_rx_buf = ath6kl_htc_pipe_flush_rx_buf,
+	.indicate_activity_change = ath6kl_htc_pipe_indicate_activity_change,
+	.get_rxbuf_num = ath6kl_htc_pipe_get_rxbuf_num,
+	.add_rxbuf_multiple = ath6kl_htc_pipe_add_rxbuf_multiple,
+	.credit_setup = ath6kl_htc_pipe_credit_setup,
+};
+
+void ath6kl_htc_pipe_attach(struct ath6kl *ar)
+{
+	ar->htc_ops = &ath6kl_htc_pipe_ops;
 }

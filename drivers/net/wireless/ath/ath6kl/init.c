@@ -24,6 +24,7 @@
 #include "target.h"
 #include "debug.h"
 #include "hif-ops.h"
+#include "htc-ops.h"
 
 unsigned int debug_mask;
 static unsigned int testmode;
@@ -1441,7 +1442,7 @@ int ath6kl_init_hw_start(struct ath6kl *ar)
 	}
 
 	/* setup credit distribution */
-	ath6kl_credit_setup(ar->htc_target, &ar->credit_state_info);
+	ath6kl_htc_credit_setup(ar->htc_target, &ar->credit_state_info);
 
 	/* start HTC */
 	ret = ath6kl_htc_start(ar->htc_target);

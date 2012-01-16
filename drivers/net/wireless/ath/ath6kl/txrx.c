@@ -16,6 +16,7 @@
 
 #include "core.h"
 #include "debug.h"
+#include "htc-ops.h"
 
 static u8 ath6kl_ibss_map_epid(struct sk_buff *skb, struct net_device *dev,
 			       u32 *map_no)
