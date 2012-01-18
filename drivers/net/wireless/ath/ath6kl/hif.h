@@ -219,6 +219,16 @@ struct ath6kl_irq_enable_reg {
 	u8 cntr_int_status_en;
 } __packed;
 
+/**
+ * @brief List of callbacks - filled in by HTC.
+ */
+struct ath6kl_hif_pipe_callbacks {
+	int (*tx_completion) (struct htc_target *context, struct sk_buff * skb);
+	int (*rx_completion) (struct htc_target *context,
+				struct sk_buff *skb, u8 pipe);
+	void (*tx_resource_available) (struct htc_target *context, u8 pipe);
+};
+
 struct ath6kl_device {
 	spinlock_t lock;
 	struct ath6kl_irq_proc_registers irq_proc_reg;
@@ -252,6 +262,14 @@ struct ath6kl_hif_ops {
 	int (*power_on)(struct ath6kl *ar);
 	int (*power_off)(struct ath6kl *ar);
 	void (*stop)(struct ath6kl *ar);
+	void (*pipe_register_callback)(struct ath6kl *ar,
+		void *htc_context, struct ath6kl_hif_pipe_callbacks *callbacks);
+	int (*pipe_send)(struct ath6kl *ar, u8 pipe, struct sk_buff *hdr_buf,
+		struct sk_buff *buf);
+	void (*pipe_get_default)(struct ath6kl *ar, u8 *pipe_ul, u8 *pipe_dl);
+	int (*pipe_map_service)(struct ath6kl *ar, u16 service_id, u8 *pipe_ul,
+		u8 *pipe_dl);
+	u16 (*pipe_get_free_queue_number)(struct ath6kl *ar, u8 pipe);
 };
 
 int ath6kl_hif_setup(struct ath6kl_device *dev);

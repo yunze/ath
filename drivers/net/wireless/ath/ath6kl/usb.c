@@ -14,8 +14,6 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "usb.h"
-
 #include <linux/module.h>
 #include <linux/usb.h>
 
@@ -66,7 +64,7 @@ struct ath6kl_usb {
 	spinlock_t cs_lock;
 	spinlock_t tx_lock;
 	spinlock_t rx_lock;
-	struct hif_callbacks htc_callbacks;
+	struct ath6kl_hif_pipe_callbacks htc_callbacks;
 	struct usb_device *udev;
 	struct usb_interface *interface;
 	struct ath6kl_usb_pipe pipes[ATH6KL_USB_PIPE_MAX];
@@ -695,16 +693,18 @@ static void ath6kl_usb_device_detached(struct usb_interface *interface)
 
 	ath6kl_stop_txrx(ar_usb->ar);
 
+	/* Delay to wait for the target to reboot */
+	mdelay(20);
 	ath6kl_core_cleanup(ar_usb->ar);
-
 	ath6kl_usb_destroy(ar_usb);
 }
 
 /* exported hif usb APIs for htc pipe */
-void hif_start(struct ath6kl *ar)
+static void hif_start(struct ath6kl *ar)
 {
 	struct ath6kl_usb *device = ath6kl_usb_priv(ar);
 	int i;
+
 	ath6kl_usb_start_recv_pipes(device);
 
 	/* set the TX resource avail threshold for each TX pipe */
@@ -715,8 +715,8 @@ void hif_start(struct ath6kl *ar)
 	}
 }
 
-int hif_send(struct ath6kl *ar, u8 PipeID, struct sk_buff *hdr_buf,
-	     struct sk_buff *buf)
+static int ath6kl_usb_send(struct ath6kl *ar, u8 PipeID,
+	struct sk_buff *hdr_buf, struct sk_buff *buf)
 {
 	int status = 0;
 	struct ath6kl_usb *device = ath6kl_usb_priv(ar);
@@ -791,25 +791,26 @@ fail_hif_send:
 	return status;
 }
 
-void hif_stop(struct ath6kl *ar)
+static void hif_stop(struct ath6kl *ar)
 {
 	struct ath6kl_usb *device = ath6kl_usb_priv(ar);
 
 	ath6kl_usb_flush_all(device);
 }
 
-void hif_get_default_pipe(struct ath6kl *ar, u8 *ULPipe, u8 *DLPipe)
+static void ath6kl_usb_get_default_pipe(struct ath6kl *ar,
+	u8 *ul_pipe, u8 *dl_pipe)
 {
-	*ULPipe = ATH6KL_USB_PIPE_TX_CTRL;
-	*DLPipe = ATH6KL_USB_PIPE_RX_CTRL;
+	*ul_pipe = ATH6KL_USB_PIPE_TX_CTRL;
+	*dl_pipe = ATH6KL_USB_PIPE_RX_CTRL;
 }
 
-int hif_map_service_pipe(struct ath6kl *ar, u16 ServiceId, u8 *ULPipe,
+static int ath6kl_usb_map_service_pipe(struct ath6kl *ar, u16 svcId, u8 *ULPipe,
 			 u8 *DLPipe)
 {
 	int status = 0;
 
-	switch (ServiceId) {
+	switch (svcId) {
 	case HTC_CTRL_RSVD_SVC:
 	case WMI_CONTROL_SVC:
 		*ULPipe = ATH6KL_USB_PIPE_TX_CTRL;
@@ -861,29 +862,30 @@ int hif_map_service_pipe(struct ath6kl *ar, u16 ServiceId, u8 *ULPipe,
 	return status;
 }
 
-void hif_postinit(struct ath6kl *ar,
+static void ath6kl_usb_register_callback(struct ath6kl *ar,
 		void *unused,
-		struct hif_callbacks *callbacks)
+		struct ath6kl_hif_pipe_callbacks *callbacks)
 {
 	struct ath6kl_usb *device = ath6kl_usb_priv(ar);
 
 	memcpy(&device->htc_callbacks, callbacks,
-	       sizeof(struct hif_callbacks));
+	       sizeof(struct ath6kl_hif_pipe_callbacks));
 }
 
-u16 hif_get_free_queue_number(struct ath6kl *ar, u8 PipeID)
+static u16 ath6kl_usb_get_free_queue_number(struct ath6kl *ar, u8 PipeID)
 {
 	struct ath6kl_usb *device = ath6kl_usb_priv(ar);
 	return device->pipes[PipeID].urb_cnt;
 }
 
-void hif_detach_htc(struct ath6kl *ar)
+static void hif_detach_htc(struct ath6kl *ar)
 {
 	struct ath6kl_usb *device = ath6kl_usb_priv(ar);
 
 	ath6kl_usb_flush_all(device);
 
-	memset(&device->htc_callbacks, 0, sizeof(struct hif_callbacks));
+	memset(&device->htc_callbacks, 0,
+		sizeof(struct ath6kl_hif_pipe_callbacks));
 }
 
 static int ath6kl_usb_submit_ctrl_out(struct ath6kl_usb *ar_usb,
@@ -1068,12 +1070,19 @@ static int ath6kl_usb_bmi_write(struct ath6kl *ar, u8 *buf, u32 len)
 
 static int ath6kl_usb_power_on(struct ath6kl *ar)
 {
+	hif_start(ar);
 	return 0;
 }
 
 static int ath6kl_usb_power_off(struct ath6kl *ar)
 {
+	hif_detach_htc(ar);
 	return 0;
+}
+
+static void ath6kl_usb_stop(struct ath6kl *ar)
+{
+	hif_stop(ar);
 }
 
 static const struct ath6kl_hif_ops ath6kl_usb_ops = {
@@ -1083,6 +1092,12 @@ static const struct ath6kl_hif_ops ath6kl_usb_ops = {
 	.bmi_write = ath6kl_usb_bmi_write,
 	.power_on = ath6kl_usb_power_on,
 	.power_off = ath6kl_usb_power_off,
+	.stop = ath6kl_usb_stop,
+	.pipe_register_callback = ath6kl_usb_register_callback,
+	.pipe_send = ath6kl_usb_send,
+	.pipe_get_default = ath6kl_usb_get_default_pipe,
+	.pipe_map_service = ath6kl_usb_map_service_pipe,
+	.pipe_get_free_queue_number = ath6kl_usb_get_free_queue_number,
 };
 
 /* ath6kl usb driver registered functions */

@@ -16,7 +16,7 @@
 
 #include "core.h"
 #include "debug.h"
-#include "usb.h"
+#include "hif-ops.h"
 
 #define HTC_PACKET_CONTAINER_ALLOCATION 32
 #define HTC_CONTROL_BUFFER_SIZE (HTC_MAX_CTRL_MSG_LEN + HTC_HDR_LENGTH)
@@ -265,7 +265,7 @@ static int htc_issue_packets(struct htc_target *target,
 		ep->ep_st.tx_issued += 1;
 		spin_unlock_bh(&target->tx_lock);
 
-		status = hif_send(target->dev->ar,
+		status = ath6kl_hif_pipe_send(target->dev->ar,
 				ep->pipeid_ul, NULL, nbuf);
 
 		if (status != 0) {
@@ -431,7 +431,7 @@ static enum htc_send_queue_result htc_try_send(struct htc_target *target,
 
 	if (!ep->tx_credit_flow_enabled) {
 		tx_resources =
-		    hif_get_free_queue_number(ar, ep->pipeid_ul);
+		    ath6kl_hif_pipe_get_free_queue_number(ar, ep->pipeid_ul);
 	} else {
 		tx_resources = 0;
 	}
@@ -500,7 +500,7 @@ static enum htc_send_queue_result htc_try_send(struct htc_target *target,
 
 		if (!ep->tx_credit_flow_enabled) {
 			tx_resources =
-			    hif_get_free_queue_number(ar,
+			    ath6kl_hif_pipe_get_free_queue_number(ar,
 						      ep->pipeid_ul);
 		}
 
@@ -1436,10 +1436,8 @@ static int ath6kl_htc_pipe_conn_service(struct htc_target *handle,
 	/* copy all the callbacks */
 	ep->ep_cb = conn_req->ep_cb;
 
-	status = hif_map_service_pipe(
-				ar,
-				ep->svc_id,
-				&ep->pipeid_ul, &ep->pipeid_dl);
+	status = ath6kl_hif_pipe_map_service(ar, ep->svc_id,
+			&ep->pipeid_ul, &ep->pipeid_dl);
 	if (status != 0)
 		goto free_packet;
 
@@ -1465,7 +1463,7 @@ free_packet:
 void *ath6kl_htc_pipe_create(struct ath6kl *ar)
 {
 	int status = 0;
-	struct hif_callbacks htc_callbacks;
+	struct ath6kl_hif_pipe_callbacks htc_callbacks;
 	struct htc_endpoint *ep = NULL;
 	struct htc_target *target = NULL;
 	struct htc_packet *packet;
@@ -1495,7 +1493,7 @@ void *ath6kl_htc_pipe_create(struct ath6kl *ar)
 		}
 	}
 	/* setup HIF layer callbacks */
-	memset(&htc_callbacks, 0, sizeof(struct hif_callbacks));
+	memset(&htc_callbacks, 0, sizeof(struct ath6kl_hif_pipe_callbacks));
 	htc_callbacks.rx_completion = htc_rx_completion;
 	htc_callbacks.tx_completion = htc_tx_completion;
 	htc_callbacks.tx_resource_available = htc_tx_resource_available;
@@ -1513,9 +1511,8 @@ void *ath6kl_htc_pipe_create(struct ath6kl *ar)
 	/* Get HIF default pipe for HTC message exchange */
 	ep = &target->endpoint[ENDPOINT_0];
 
-	hif_postinit(ar, target, &htc_callbacks);
-	hif_get_default_pipe(ar, &ep->pipeid_ul,
-			     &ep->pipeid_dl);
+	ath6kl_hif_pipe_register_callback(ar, target, &htc_callbacks);
+	ath6kl_hif_pipe_get_default(ar, &ep->pipeid_ul, &ep->pipeid_dl);
 
 	return (void *)target;
 
@@ -1532,11 +1529,7 @@ fail_htc_create:
 static void ath6kl_htc_pipe_cleanup(struct htc_target *handle)
 {
 	struct htc_packet *packet;
-	struct ath6kl *ar = handle->dev->ar;
 	struct htc_target *target = (struct htc_target *) handle;
-
-	if (ar->hif_priv != NULL)
-		hif_detach_htc(ar);
 
 	while (true) {
 		packet = alloc_htc_packet_container(target);
@@ -1592,7 +1585,6 @@ static int ath6kl_htc_pipe_start(struct htc_target *handle)
 
 static void ath6kl_htc_pipe_stop(struct htc_target *handle)
 {
-	struct ath6kl *ar = handle->dev->ar;
 	struct htc_target *target = (struct htc_target *) handle;
 	int i;
 	struct htc_endpoint *ep;
@@ -1604,7 +1596,6 @@ static void ath6kl_htc_pipe_stop(struct htc_target *handle)
 		htc_flush_tx_endpoint(target, ep, HTC_TX_PACKET_TAG_ALL);
 	}
 
-	hif_stop(ar);
 	reset_endpoint_states(target);
 	target->htc_flags &= ~HTC_OP_STATE_SETUP_COMPLETE;
 }
@@ -1640,13 +1631,11 @@ static int ath6kl_htc_pipe_tx(struct htc_target *handle,
 static int ath6kl_htc_pipe_wait_target(struct htc_target *handle)
 {
 	int status = 0;
-	struct ath6kl *ar = handle->dev->ar;
 	struct htc_target *target = (struct htc_target *) handle;
 	struct htc_ready_ext_msg *ready_msg;
 	struct htc_service_connect_req connect;
 	struct htc_service_connect_resp resp;
 
-	hif_start(ar);
 	status = htc_wait_recv_ctrl_message(target);
 
 	if (status != 0)
