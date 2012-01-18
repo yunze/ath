@@ -688,18 +688,16 @@ static int htc_setup_target_buffer_assignments(struct htc_target *target)
 	}
 
 	if (status == 0) {
-		if (AR_DBG_LVL_CHECK(ATH6KL_DBG_HTC)) {
-			int i;
-			for (i = 0; i < ENDPOINT_MAX; i++) {
-				if (target->txcredit_alloc[i].service_id != 0) {
-					ath6kl_dbg(ATH6KL_DBG_HTC,
-						   "HTC Service Index : %d TX : 0x%2.2X :"
-						   "alloc:%d\n", i,
-						   target->txcredit_alloc[i].
-						   service_id,
-						   target->txcredit_alloc[i].
-						   credit_alloc);
-				}
+		int i;
+		for (i = 0; i < ENDPOINT_MAX; i++) {
+			if (target->txcredit_alloc[i].service_id != 0) {
+				ath6kl_dbg(ATH6KL_DBG_HTC,
+					   "HTC Service Index : %d TX : 0x%2.2X :"
+					   "alloc:%d\n", i,
+					   target->txcredit_alloc[i].
+					   service_id,
+					   target->txcredit_alloc[i].
+					   credit_alloc);
 			}
 		}
 	}

@@ -2071,6 +2071,7 @@ int ath6kl_htc_rxmsg_pending_handler(struct htc_target *target,
 	enum htc_endpoint_id id;
 	int n_fetched = 0;
 
+	INIT_LIST_HEAD(&comp_pktq);
 	*num_pkts = 0;
 
 	/*

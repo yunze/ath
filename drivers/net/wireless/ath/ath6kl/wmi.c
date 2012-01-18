@@ -180,7 +180,7 @@ static int ath6kl_wmi_meta_add(struct wmi *wmi, struct sk_buff *skb,
 }
 
 int ath6kl_wmi_data_hdr_add(struct wmi *wmi, struct sk_buff *skb,
-			    u8 msg_type, bool more_data,
+			    u8 msg_type, u32 flags,
 			    enum wmi_data_hdr_data_type data_type,
 			    u8 meta_ver, void *tx_meta_info, u8 if_idx)
 {
@@ -204,17 +204,19 @@ int ath6kl_wmi_data_hdr_add(struct wmi *wmi, struct sk_buff *skb,
 	data_hdr->info = msg_type << WMI_DATA_HDR_MSG_TYPE_SHIFT;
 	data_hdr->info |= data_type << WMI_DATA_HDR_DATA_TYPE_SHIFT;
 
-	if (more_data)
-		data_hdr->info |=
-		    WMI_DATA_HDR_MORE_MASK << WMI_DATA_HDR_MORE_SHIFT;
+	if (flags & WMI_DATA_HDR_FLAGS_MORE)
+		data_hdr->info |= WMI_DATA_HDR_MORE;
 
-	data_hdr->info2 = cpu_to_le16(meta_ver << WMI_DATA_HDR_META_SHIFT);
-	data_hdr->info3 = cpu_to_le16(if_idx & WMI_DATA_HDR_IF_IDX_MASK);
+	if (flags & WMI_DATA_HDR_FLAGS_EOSP)
+		data_hdr->info3 |= cpu_to_le16(WMI_DATA_HDR_EOSP);
+
+	data_hdr->info2 |= cpu_to_le16(meta_ver << WMI_DATA_HDR_META_SHIFT);
+	data_hdr->info3 |= cpu_to_le16(if_idx & WMI_DATA_HDR_IF_IDX_MASK);
 
 	return 0;
 }
 
-static u8 ath6kl_wmi_determine_user_priority(u8 *pkt, u32 layer2_pri)
+u8 ath6kl_wmi_determine_user_priority(u8 *pkt, u32 layer2_pri)
 {
 	struct iphdr *ip_hdr = (struct iphdr *) pkt;
 	u8 ip_pri;
@@ -234,6 +236,11 @@ static u8 ath6kl_wmi_determine_user_priority(u8 *pkt, u32 layer2_pri)
 		return (u8) layer2_pri & 0x7;
 	else
 		return ip_pri;
+}
+
+u8 ath6kl_wmi_get_traffic_class(u8 user_priority)
+{
+	return  up_to_ac[user_priority & 0x7];
 }
 
 int ath6kl_wmi_implicit_create_pstream(struct wmi *wmi, u8 if_idx,
@@ -418,9 +425,6 @@ static int ath6kl_wmi_tx_complete_event_rx(u8 *datap, int len)
 
 	ath6kl_dbg(ATH6KL_DBG_WMI, "comp: %d %d %d\n",
 		   evt->num_msg, evt->msg_len, evt->msg_type);
-
-	if (!AR_DBG_LVL_CHECK(ATH6KL_DBG_WMI))
-		return 0;
 
 	for (index = 0; index < evt->num_msg; index++) {
 		size = sizeof(struct wmi_tx_complete_event) +
@@ -786,12 +790,14 @@ static int ath6kl_wmi_connect_event_rx(struct wmi *wmi, u8 *datap, int len,
 				   ev->u.ap_sta.keymgmt,
 				   le16_to_cpu(ev->u.ap_sta.cipher),
 				   ev->u.ap_sta.apsd_info);
+
 			ath6kl_connect_ap_mode_sta(
 				vif, ev->u.ap_sta.aid, ev->u.ap_sta.mac_addr,
 				ev->u.ap_sta.keymgmt,
 				le16_to_cpu(ev->u.ap_sta.cipher),
 				ev->u.ap_sta.auth, ev->assoc_req_len,
-				ev->assoc_info + ev->beacon_ie_len);
+				ev->assoc_info + ev->beacon_ie_len,
+				ev->u.ap_sta.apsd_info);
 		}
 		return 0;
 	}
@@ -977,6 +983,13 @@ static int ath6kl_wmi_tkip_micerr_event_rx(struct wmi *wmi, u8 *datap, int len,
 	return 0;
 }
 
+void ath6kl_wmi_sscan_timer(unsigned long ptr)
+{
+	struct ath6kl_vif *vif = (struct ath6kl_vif *) ptr;
+
+	cfg80211_sched_scan_results(vif->ar->wiphy);
+}
+
 static int ath6kl_wmi_bssinfo_event_rx(struct wmi *wmi, u8 *datap, int len,
 				       struct ath6kl_vif *vif)
 {
@@ -1066,6 +1079,21 @@ static int ath6kl_wmi_bssinfo_event_rx(struct wmi *wmi, u8 *datap, int len,
 		return -ENOMEM;
 	cfg80211_put_bss(bss);
 
+	/*
+	 * Firmware doesn't return any event when scheduled scan has
+	 * finished, so we need to use a timer to find out when there are
+	 * no more results.
+	 *
+	 * The timer is started from the first bss info received, otherwise
+	 * the timer would not ever fire if the scan interval is short
+	 * enough.
+	 */
+	if (ar->state == ATH6KL_STATE_SCHED_SCAN &&
+	    !timer_pending(&vif->sched_scan_timer)) {
+		mod_timer(&vif->sched_scan_timer, jiffies +
+			  msecs_to_jiffies(ATH6KL_SCHED_SCAN_RESULT_DELAY));
+	}
+
 	return 0;
 }
 
@@ -1123,9 +1151,9 @@ static int ath6kl_wmi_bitrate_reply_rx(struct wmi *wmi, u8 *datap, int len)
 	return 0;
 }
 
-static int ath6kl_wmi_tcmd_test_report_rx(struct wmi *wmi, u8 *datap, int len)
+static int ath6kl_wmi_test_rx(struct wmi *wmi, u8 *datap, int len)
 {
-	ath6kl_tm_rx_report_event(wmi->parent_dev, datap, len);
+	ath6kl_tm_rx_event(wmi->parent_dev, datap, len);
 
 	return 0;
 }
@@ -1682,7 +1710,8 @@ int ath6kl_wmi_connect_cmd(struct wmi *wmi, u8 if_idx,
 			   u8 pairwise_crypto_len,
 			   enum crypto_type group_crypto,
 			   u8 group_crypto_len, int ssid_len, u8 *ssid,
-			   u8 *bssid, u16 channel, u32 ctrl_flags)
+			   u8 *bssid, u16 channel, u32 ctrl_flags,
+			   u8 nw_subtype)
 {
 	struct sk_buff *skb;
 	struct wmi_connect_cmd *cc;
@@ -1722,6 +1751,7 @@ int ath6kl_wmi_connect_cmd(struct wmi *wmi, u8 if_idx,
 	cc->grp_crypto_len = group_crypto_len;
 	cc->ch = cpu_to_le16(channel);
 	cc->ctrl_flags = cpu_to_le32(ctrl_flags);
+	cc->nw_subtype = nw_subtype;
 
 	if (bssid != NULL)
 		memcpy(cc->bssid, bssid, ETH_ALEN);
@@ -1774,6 +1804,72 @@ int ath6kl_wmi_disconnect_cmd(struct wmi *wmi, u8 if_idx)
 	return ret;
 }
 
+int ath6kl_wmi_beginscan_cmd(struct wmi *wmi, u8 if_idx,
+			     enum wmi_scan_type scan_type,
+			     u32 force_fgscan, u32 is_legacy,
+			     u32 home_dwell_time, u32 force_scan_interval,
+			     s8 num_chan, u16 *ch_list, u32 no_cck, u32 *rates)
+{
+	struct sk_buff *skb;
+	struct wmi_begin_scan_cmd *sc;
+	s8 size;
+	int i, band, ret;
+	struct ath6kl *ar = wmi->parent_dev;
+	int num_rates;
+
+	size = sizeof(struct wmi_begin_scan_cmd);
+
+	if ((scan_type != WMI_LONG_SCAN) && (scan_type != WMI_SHORT_SCAN))
+		return -EINVAL;
+
+	if (num_chan > WMI_MAX_CHANNELS)
+		return -EINVAL;
+
+	if (num_chan)
+		size += sizeof(u16) * (num_chan - 1);
+
+	skb = ath6kl_wmi_get_new_buf(size);
+	if (!skb)
+		return -ENOMEM;
+
+	sc = (struct wmi_begin_scan_cmd *) skb->data;
+	sc->scan_type = scan_type;
+	sc->force_fg_scan = cpu_to_le32(force_fgscan);
+	sc->is_legacy = cpu_to_le32(is_legacy);
+	sc->home_dwell_time = cpu_to_le32(home_dwell_time);
+	sc->force_scan_intvl = cpu_to_le32(force_scan_interval);
+	sc->no_cck = cpu_to_le32(no_cck);
+	sc->num_ch = num_chan;
+
+	for (band = 0; band < IEEE80211_NUM_BANDS; band++) {
+		struct ieee80211_supported_band *sband =
+		    ar->wiphy->bands[band];
+		u32 ratemask = rates[band];
+		u8 *supp_rates = sc->supp_rates[band].rates;
+		num_rates = 0;
+
+		for (i = 0; i < sband->n_bitrates; i++) {
+			if ((BIT(i) & ratemask) == 0)
+				continue; /* skip rate */
+			supp_rates[num_rates++] =
+			    (u8) (sband->bitrates[i].bitrate / 5);
+		}
+		sc->supp_rates[band].nrates = num_rates;
+	}
+
+	for (i = 0; i < num_chan; i++)
+		sc->ch_list[i] = cpu_to_le16(ch_list[i]);
+
+	ret = ath6kl_wmi_cmd_send(wmi, if_idx, skb, WMI_BEGIN_SCAN_CMDID,
+				  NO_SYNC_WMIFLAG);
+
+	return ret;
+}
+
+/* ath6kl_wmi_start_scan_cmd is to be deprecated. Use
+ * ath6kl_wmi_begin_scan_cmd instead. The new function supports P2P
+ * mgmt operations using station interface.
+ */
 int ath6kl_wmi_startscan_cmd(struct wmi *wmi, u8 if_idx,
 			     enum wmi_scan_type scan_type,
 			     u32 force_fgscan, u32 is_legacy,
@@ -2389,15 +2485,16 @@ int ath6kl_wmi_delete_pstream_cmd(struct wmi *wmi, u8 if_idx, u8 traffic_class,
 	return ret;
 }
 
-int ath6kl_wmi_set_ip_cmd(struct wmi *wmi, struct wmi_set_ip_cmd *ip_cmd)
+int ath6kl_wmi_set_ip_cmd(struct wmi *wmi, u8 if_idx,
+			  __be32 ips0, __be32 ips1)
 {
 	struct sk_buff *skb;
 	struct wmi_set_ip_cmd *cmd;
 	int ret;
 
 	/* Multicast address are not valid */
-	if ((*((u8 *) &ip_cmd->ips[0]) >= 0xE0) ||
-	    (*((u8 *) &ip_cmd->ips[1]) >= 0xE0))
+	if (ipv4_is_multicast(ips0) ||
+	    ipv4_is_multicast(ips1))
 		return -EINVAL;
 
 	skb = ath6kl_wmi_get_new_buf(sizeof(struct wmi_set_ip_cmd));
@@ -2405,9 +2502,10 @@ int ath6kl_wmi_set_ip_cmd(struct wmi *wmi, struct wmi_set_ip_cmd *ip_cmd)
 		return -ENOMEM;
 
 	cmd = (struct wmi_set_ip_cmd *) skb->data;
-	memcpy(cmd, ip_cmd, sizeof(struct wmi_set_ip_cmd));
+	cmd->ips[0] = ips0;
+	cmd->ips[1] = ips1;
 
-	ret = ath6kl_wmi_cmd_send(wmi, 0, skb, WMI_SET_IP_CMDID,
+	ret = ath6kl_wmi_cmd_send(wmi, if_idx, skb, WMI_SET_IP_CMDID,
 				  NO_SYNC_WMIFLAG);
 	return ret;
 }
@@ -2763,6 +2861,51 @@ int ath6kl_wmi_test_cmd(struct wmi *wmi, void *buf, size_t len)
 	return ret;
 }
 
+int ath6kl_wmi_mcast_filter_cmd(struct wmi *wmi, u8 if_idx, bool mc_all_on)
+{
+	struct sk_buff *skb;
+	struct wmi_mcast_filter_cmd *cmd;
+	int ret;
+
+	skb = ath6kl_wmi_get_new_buf(sizeof(*cmd));
+	if (!skb)
+		return -ENOMEM;
+
+	cmd = (struct wmi_mcast_filter_cmd *) skb->data;
+	cmd->mcast_all_enable = mc_all_on;
+
+	ret = ath6kl_wmi_cmd_send(wmi, if_idx, skb, WMI_MCAST_FILTER_CMDID,
+				  NO_SYNC_WMIFLAG);
+	return ret;
+}
+
+int ath6kl_wmi_add_del_mcast_filter_cmd(struct wmi *wmi, u8 if_idx,
+					u8 *filter, bool add_filter)
+{
+	struct sk_buff *skb;
+	struct wmi_mcast_filter_add_del_cmd *cmd;
+	int ret;
+
+	if ((filter[0] != 0x33 || filter[1] != 0x33) &&
+	    (filter[0] != 0x01 || filter[1] != 0x00 ||
+	    filter[2] != 0x5e || filter[3] > 0x7f)) {
+		ath6kl_warn("invalid multicast filter address\n");
+		return -EINVAL;
+	}
+
+	skb = ath6kl_wmi_get_new_buf(sizeof(*cmd));
+	if (!skb)
+		return -ENOMEM;
+
+	cmd = (struct wmi_mcast_filter_add_del_cmd *) skb->data;
+	memcpy(cmd->mcast_mac, filter, ATH6KL_MCAST_FILTER_MAC_ADDR_SIZE);
+	ret = ath6kl_wmi_cmd_send(wmi, if_idx, skb,
+				  add_filter ? WMI_SET_MCAST_FILTER_CMDID :
+				  WMI_DEL_MCAST_FILTER_CMDID,
+				  NO_SYNC_WMIFLAG);
+
+	return ret;
+}
 
 s32 ath6kl_wmi_get_rate(s8 rate_index)
 {
@@ -2856,6 +2999,43 @@ int ath6kl_wmi_ap_set_mlme(struct wmi *wmip, u8 if_idx, u8 cmd, const u8 *mac,
 				   NO_SYNC_WMIFLAG);
 }
 
+/* This command will be used to enable/disable AP uAPSD feature */
+int ath6kl_wmi_ap_set_apsd(struct wmi *wmi, u8 if_idx, u8 enable)
+{
+	struct wmi_ap_set_apsd_cmd *cmd;
+	struct sk_buff *skb;
+
+	skb = ath6kl_wmi_get_new_buf(sizeof(*cmd));
+	if (!skb)
+		return -ENOMEM;
+
+	cmd = (struct wmi_ap_set_apsd_cmd *)skb->data;
+	cmd->enable = enable;
+
+	return ath6kl_wmi_cmd_send(wmi, if_idx, skb, WMI_AP_SET_APSD_CMDID,
+				   NO_SYNC_WMIFLAG);
+}
+
+int ath6kl_wmi_set_apsd_bfrd_traf(struct wmi *wmi, u8 if_idx,
+					     u16 aid, u16 bitmap, u32 flags)
+{
+	struct wmi_ap_apsd_buffered_traffic_cmd *cmd;
+	struct sk_buff *skb;
+
+	skb = ath6kl_wmi_get_new_buf(sizeof(*cmd));
+	if (!skb)
+		return -ENOMEM;
+
+	cmd = (struct wmi_ap_apsd_buffered_traffic_cmd *)skb->data;
+	cmd->aid = cpu_to_le16(aid);
+	cmd->bitmap = cpu_to_le16(bitmap);
+	cmd->flags = cpu_to_le32(flags);
+
+	return ath6kl_wmi_cmd_send(wmi, if_idx, skb,
+				   WMI_AP_APSD_BUFFERED_TRAFFIC_CMDID,
+				   NO_SYNC_WMIFLAG);
+}
+
 static int ath6kl_wmi_pspoll_event_rx(struct wmi *wmi, u8 *datap, int len,
 				      struct ath6kl_vif *vif)
 {
@@ -2940,7 +3120,10 @@ int ath6kl_wmi_set_appie_cmd(struct wmi *wmi, u8 if_idx, u8 mgmt_frm_type,
 	p = (struct wmi_set_appie_cmd *) skb->data;
 	p->mgmt_frm_type = mgmt_frm_type;
 	p->ie_len = ie_len;
-	memcpy(p->ie_info, ie, ie_len);
+
+	if (ie != NULL && ie_len > 0)
+		memcpy(p->ie_info, ie, ie_len);
+
 	return ath6kl_wmi_cmd_send(wmi, if_idx, skb, WMI_SET_APPIE_CMDID,
 				   NO_SYNC_WMIFLAG);
 }
@@ -2981,6 +3164,10 @@ int ath6kl_wmi_remain_on_chnl_cmd(struct wmi *wmi, u8 if_idx, u32 freq, u32 dur)
 				   NO_SYNC_WMIFLAG);
 }
 
+/* ath6kl_wmi_send_action_cmd is to be deprecated. Use
+ * ath6kl_wmi_send_mgmt_cmd instead. The new function supports P2P
+ * mgmt operations using station interface.
+ */
 int ath6kl_wmi_send_action_cmd(struct wmi *wmi, u8 if_idx, u32 id, u32 freq,
 			       u32 wait, const u8 *data, u16 data_len)
 {
@@ -3015,6 +3202,45 @@ int ath6kl_wmi_send_action_cmd(struct wmi *wmi, u8 if_idx, u32 id, u32 freq,
 	p->len = cpu_to_le16(data_len);
 	memcpy(p->data, data, data_len);
 	return ath6kl_wmi_cmd_send(wmi, if_idx, skb, WMI_SEND_ACTION_CMDID,
+				   NO_SYNC_WMIFLAG);
+}
+
+int ath6kl_wmi_send_mgmt_cmd(struct wmi *wmi, u8 if_idx, u32 id, u32 freq,
+			       u32 wait, const u8 *data, u16 data_len,
+			       u32 no_cck)
+{
+	struct sk_buff *skb;
+	struct wmi_send_mgmt_cmd *p;
+	u8 *buf;
+
+	if (wait)
+		return -EINVAL; /* Offload for wait not supported */
+
+	buf = kmalloc(data_len, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
+	skb = ath6kl_wmi_get_new_buf(sizeof(*p) + data_len);
+	if (!skb) {
+		kfree(buf);
+		return -ENOMEM;
+	}
+
+	kfree(wmi->last_mgmt_tx_frame);
+	memcpy(buf, data, data_len);
+	wmi->last_mgmt_tx_frame = buf;
+	wmi->last_mgmt_tx_frame_len = data_len;
+
+	ath6kl_dbg(ATH6KL_DBG_WMI, "send_action_cmd: id=%u freq=%u wait=%u "
+		   "len=%u\n", id, freq, wait, data_len);
+	p = (struct wmi_send_mgmt_cmd *) skb->data;
+	p->id = cpu_to_le32(id);
+	p->freq = cpu_to_le32(freq);
+	p->wait = cpu_to_le32(wait);
+	p->no_cck = cpu_to_le32(no_cck);
+	p->len = cpu_to_le16(data_len);
+	memcpy(p->data, data, data_len);
+	return ath6kl_wmi_cmd_send(wmi, if_idx, skb, WMI_SEND_MGMT_CMDID,
 				   NO_SYNC_WMIFLAG);
 }
 
@@ -3264,7 +3490,7 @@ int ath6kl_wmi_control_rx(struct wmi *wmi, struct sk_buff *skb)
 		break;
 	case WMI_TEST_EVENTID:
 		ath6kl_dbg(ATH6KL_DBG_WMI, "WMI_TEST_EVENTID\n");
-		ret = ath6kl_wmi_tcmd_test_report_rx(wmi, datap, len);
+		ret = ath6kl_wmi_test_rx(wmi, datap, len);
 		break;
 	case WMI_GET_FIXRATES_CMDID:
 		ath6kl_dbg(ATH6KL_DBG_WMI, "WMI_GET_FIXRATES_CMDID\n");

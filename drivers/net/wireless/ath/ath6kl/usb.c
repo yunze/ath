@@ -1120,7 +1120,7 @@ static int ath6kl_usb_probe(struct usb_interface *interface,
 		goto err_usb_put;
 	}
 
-	ar = ath6kl_core_alloc(&ar_usb->udev->dev);
+	ar = ath6kl_core_create(&ar_usb->udev->dev);
 	if (ar == NULL) {
 		ath6kl_err("Failed to alloc ath6kl core\n");
 		ret = -ENOMEM;
@@ -1145,7 +1145,7 @@ static int ath6kl_usb_probe(struct usb_interface *interface,
 	return ret;
 
 err_core_free:
-	ath6kl_core_free(ar);
+	ath6kl_core_destroy(ar);
 err_usb_destroy:
 	ath6kl_usb_destroy(ar_usb);
 err_usb_put:

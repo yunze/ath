@@ -53,7 +53,8 @@ struct ath6kl_sta *ath6kl_find_sta_by_aid(struct ath6kl *ar, u8 aid)
 }
 
 static void ath6kl_add_new_sta(struct ath6kl *ar, u8 *mac, u16 aid, u8 *wpaie,
-			u8 ielen, u8 keymgmt, u8 ucipher, u8 auth)
+			       size_t ielen, u8 keymgmt, u8 ucipher, u8 auth,
+			       u8 apsd_info)
 {
 	struct ath6kl_sta *sta;
 	u8 free_slot;
@@ -68,6 +69,7 @@ static void ath6kl_add_new_sta(struct ath6kl *ar, u8 *mac, u16 aid, u8 *wpaie,
 	sta->keymgmt = keymgmt;
 	sta->ucipher = ucipher;
 	sta->auth = auth;
+	sta->apsd_info = apsd_info;
 
 	ar->sta_list_index = ar->sta_list_index | (1 << free_slot);
 	ar->ap_stats.sta[free_slot].aid = cpu_to_le32(aid);
@@ -80,6 +82,7 @@ static void ath6kl_sta_cleanup(struct ath6kl *ar, u8 i)
 	/* empty the queued pkts in the PS queue if any */
 	spin_lock_bh(&sta->psq_lock);
 	skb_queue_purge(&sta->psq);
+	skb_queue_purge(&sta->apsdq);
 	spin_unlock_bh(&sta->psq_lock);
 
 	memset(&ar->ap_stats.sta[sta->aid - 1], 0,
@@ -252,7 +255,7 @@ int ath6kl_read_fwlogs(struct ath6kl *ar)
 	struct ath6kl_dbglog_hdr debug_hdr;
 	struct ath6kl_dbglog_buf debug_buf;
 	u32 address, length, dropped, firstbuf, debug_hdr_addr;
-	int ret = 0, loop;
+	int ret, loop;
 	u8 *buf;
 
 	buf = kmalloc(ATH6KL_FWLOG_PAYLOAD_SIZE, GFP_KERNEL);
@@ -347,9 +350,6 @@ void ath6kl_reset_device(struct ath6kl *ar, u32 target_type,
 	case TARGET_TYPE_AR6004:
 		address = AR6004_RESET_CONTROL_ADDRESS;
 		break;
-	default:
-		address = AR6003_RESET_CONTROL_ADDRESS;
-		break;
 	}
 
 	status = ath6kl_diag_write32(ar, address, data);
@@ -363,7 +363,7 @@ static void ath6kl_install_static_wep_keys(struct ath6kl_vif *vif)
 	u8 index;
 	u8 keyusage;
 
-	for (index = WMI_MIN_KEY_INDEX; index <= WMI_MAX_KEY_INDEX; index++) {
+	for (index = 0; index <= WMI_MAX_KEY_INDEX; index++) {
 		if (vif->wep_key_list[index].key_len) {
 			keyusage = GROUP_USAGE;
 			if (index == vif->def_txkey_index)
@@ -397,7 +397,9 @@ void ath6kl_connect_ap_mode_bss(struct ath6kl_vif *vif, u16 channel)
 	case NONE_AUTH:
 		if (vif->prwise_crypto == WEP_CRYPT)
 			ath6kl_install_static_wep_keys(vif);
-		break;
+		if (!ik->valid || ik->key_type != WAPI_CRYPT)
+			break;
+		/* for WAPI, we need to set the delayed group key, continue: */
 	case WPA_PSK_AUTH:
 	case WPA2_PSK_AUTH:
 	case (WPA_PSK_AUTH | WPA2_PSK_AUTH):
@@ -426,7 +428,7 @@ void ath6kl_connect_ap_mode_bss(struct ath6kl_vif *vif, u16 channel)
 
 void ath6kl_connect_ap_mode_sta(struct ath6kl_vif *vif, u16 aid, u8 *mac_addr,
 				u8 keymgmt, u8 ucipher, u8 auth,
-				u8 assoc_req_len, u8 *assoc_info)
+				u8 assoc_req_len, u8 *assoc_info, u8 apsd_info)
 {
 	struct ath6kl *ar = vif->ar;
 	u8 *ies = NULL, *wpa_ie = NULL, *pos;
@@ -484,7 +486,7 @@ void ath6kl_connect_ap_mode_sta(struct ath6kl_vif *vif, u16 aid, u8 *mac_addr,
 
 	ath6kl_add_new_sta(ar, mac_addr, aid, wpa_ie,
 			   wpa_ie ? 2 + wpa_ie[1] : 0,
-			   keymgmt, ucipher, auth);
+			   keymgmt, ucipher, auth, apsd_info);
 
 	/* send event to application */
 	memset(&sinfo, 0, sizeof(sinfo));
@@ -585,10 +587,11 @@ void ath6kl_connect_event(struct ath6kl_vif *vif, u16 channel, u8 *bssid,
 	memcpy(vif->bssid, bssid, sizeof(vif->bssid));
 	vif->bss_ch = channel;
 
-	if ((vif->nw_type == INFRA_NETWORK))
+	if ((vif->nw_type == INFRA_NETWORK)) {
+		ar->listen_intvl_b = listen_int;
 		ath6kl_wmi_listeninterval_cmd(ar->wmi, vif->fw_vif_idx,
-					      ar->listen_intvl_t,
-					      ar->listen_intvl_b);
+					      0, ar->listen_intvl_b);
+	}
 
 	netif_wake_queue(vif->ndev);
 
@@ -1000,21 +1003,11 @@ static int ath6kl_open(struct net_device *dev)
 
 static int ath6kl_close(struct net_device *dev)
 {
-	struct ath6kl *ar = ath6kl_priv(dev);
 	struct ath6kl_vif *vif = netdev_priv(dev);
 
 	netif_stop_queue(dev);
 
-	ath6kl_disconnect(vif);
-
-	if (test_bit(WMI_READY, &ar->flag)) {
-		if (ath6kl_wmi_scanparams_cmd(ar->wmi, vif->fw_vif_idx, 0xFFFF,
-					      0, 0, 0, 0, 0, 0, 0, 0, 0))
-			return -EIO;
-
-	}
-
-	ath6kl_cfg80211_scan_complete_event(vif, true);
+	ath6kl_cfg80211_stop(vif);
 
 	clear_bit(WLAN_ENABLED, &vif->flags);
 
@@ -1028,11 +1021,155 @@ static struct net_device_stats *ath6kl_get_stats(struct net_device *dev)
 	return &vif->net_stats;
 }
 
-static struct net_device_ops ath6kl_netdev_ops = {
+static int ath6kl_set_features(struct net_device *dev,
+			       netdev_features_t features)
+{
+	struct ath6kl_vif *vif = netdev_priv(dev);
+	struct ath6kl *ar = vif->ar;
+	int err = 0;
+
+	if ((features & NETIF_F_RXCSUM) &&
+	    (ar->rx_meta_ver != WMI_META_VERSION_2)) {
+		ar->rx_meta_ver = WMI_META_VERSION_2;
+		err = ath6kl_wmi_set_rx_frame_format_cmd(ar->wmi,
+							 vif->fw_vif_idx,
+							 ar->rx_meta_ver, 0, 0);
+		if (err) {
+			dev->features = features & ~NETIF_F_RXCSUM;
+			return err;
+		}
+	} else if (!(features & NETIF_F_RXCSUM) &&
+		   (ar->rx_meta_ver == WMI_META_VERSION_2)) {
+		ar->rx_meta_ver = 0;
+		err = ath6kl_wmi_set_rx_frame_format_cmd(ar->wmi,
+							 vif->fw_vif_idx,
+							 ar->rx_meta_ver, 0, 0);
+		if (err) {
+			dev->features = features | NETIF_F_RXCSUM;
+			return err;
+		}
+
+	}
+
+	return err;
+}
+
+static void ath6kl_set_multicast_list(struct net_device *ndev)
+{
+	struct ath6kl_vif *vif = netdev_priv(ndev);
+	bool mc_all_on = false, mc_all_off = false;
+	int mc_count = netdev_mc_count(ndev);
+	struct netdev_hw_addr *ha;
+	bool found;
+	struct ath6kl_mc_filter *mc_filter, *tmp;
+	struct list_head mc_filter_new;
+	int ret;
+
+	if (!test_bit(WMI_READY, &vif->ar->flag) ||
+	    !test_bit(WLAN_ENABLED, &vif->flags))
+		return;
+
+	mc_all_on = !!(ndev->flags & IFF_PROMISC) ||
+		    !!(ndev->flags & IFF_ALLMULTI) ||
+		    !!(mc_count > ATH6K_MAX_MC_FILTERS_PER_LIST);
+
+	mc_all_off = !(ndev->flags & IFF_MULTICAST) || mc_count == 0;
+
+	if (mc_all_on || mc_all_off) {
+		/* Enable/disable all multicast */
+		ath6kl_dbg(ATH6KL_DBG_TRC, "%s multicast filter\n",
+			  mc_all_on ? "enabling" : "disabling");
+		ret = ath6kl_wmi_mcast_filter_cmd(vif->ar->wmi, vif->fw_vif_idx,
+						  mc_all_on);
+		if (ret)
+			ath6kl_warn("Failed to %s multicast receive\n",
+				    mc_all_on ? "enable" : "disable");
+		return;
+	}
+
+	list_for_each_entry_safe(mc_filter, tmp, &vif->mc_filter, list) {
+		found = false;
+		netdev_for_each_mc_addr(ha, ndev) {
+			if (memcmp(ha->addr, mc_filter->hw_addr,
+			    ATH6KL_MCAST_FILTER_MAC_ADDR_SIZE) == 0) {
+				found = true;
+				break;
+			}
+		}
+
+		if (!found) {
+			/*
+			 * Delete the filter which was previously set
+			 * but not in the new request.
+			 */
+			ath6kl_dbg(ATH6KL_DBG_TRC,
+				   "Removing %pM from multicast filter\n",
+				   mc_filter->hw_addr);
+			ret = ath6kl_wmi_add_del_mcast_filter_cmd(vif->ar->wmi,
+					vif->fw_vif_idx, mc_filter->hw_addr,
+					false);
+			if (ret) {
+				ath6kl_warn("Failed to remove multicast filter:%pM\n",
+					     mc_filter->hw_addr);
+				return;
+			}
+
+			list_del(&mc_filter->list);
+			kfree(mc_filter);
+		}
+	}
+
+	INIT_LIST_HEAD(&mc_filter_new);
+
+	netdev_for_each_mc_addr(ha, ndev) {
+		found = false;
+		list_for_each_entry(mc_filter, &vif->mc_filter, list) {
+			if (memcmp(ha->addr, mc_filter->hw_addr,
+			    ATH6KL_MCAST_FILTER_MAC_ADDR_SIZE) == 0) {
+				found = true;
+				break;
+			}
+		}
+
+		if (!found) {
+			mc_filter = kzalloc(sizeof(struct ath6kl_mc_filter),
+					    GFP_ATOMIC);
+			if (!mc_filter) {
+				WARN_ON(1);
+				goto out;
+			}
+
+			memcpy(mc_filter->hw_addr, ha->addr,
+			       ATH6KL_MCAST_FILTER_MAC_ADDR_SIZE);
+			/* Set the multicast filter */
+			ath6kl_dbg(ATH6KL_DBG_TRC,
+				   "Adding %pM to multicast filter list\n",
+				   mc_filter->hw_addr);
+			ret = ath6kl_wmi_add_del_mcast_filter_cmd(vif->ar->wmi,
+					vif->fw_vif_idx, mc_filter->hw_addr,
+					true);
+			if (ret) {
+				ath6kl_warn("Failed to add multicast filter :%pM\n",
+					     mc_filter->hw_addr);
+				kfree(mc_filter);
+				goto out;
+			}
+
+			list_add_tail(&mc_filter->list, &mc_filter_new);
+		}
+	}
+
+out:
+	list_splice_tail(&mc_filter_new, &vif->mc_filter);
+}
+
+static const struct net_device_ops ath6kl_netdev_ops = {
 	.ndo_open               = ath6kl_open,
 	.ndo_stop               = ath6kl_close,
 	.ndo_start_xmit         = ath6kl_data_tx,
 	.ndo_get_stats          = ath6kl_get_stats,
+	.ndo_set_features       = ath6kl_set_features,
+	.ndo_set_rx_mode	= ath6kl_set_multicast_list,
 };
 
 void init_netdev(struct net_device *dev)
