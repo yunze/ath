@@ -125,6 +125,8 @@ struct ath6kl_fw_ie {
 #define AR6003_HW_2_1_1_OTP_FILE		"otp.bin"
 #define AR6003_HW_2_1_1_FIRMWARE_FILE		"athwlan.bin"
 #define AR6003_HW_2_1_1_TCMD_FIRMWARE_FILE	"athtcmd_ram.bin"
+#define AR6003_HW_2_1_1_UTF_FIRMWARE_FILE	"utf.bin"
+#define AR6003_HW_2_1_1_TESTSCRIPT_FILE	"nullTestFlow.bin"
 #define AR6003_HW_2_1_1_PATCH_FILE		"data.patch.bin"
 #define AR6003_HW_2_1_1_BOARD_DATA_FILE "ath6k/AR6003/hw2.1.1/bdata.bin"
 #define AR6003_HW_2_1_1_DEFAULT_BOARD_DATA_FILE	\
@@ -195,6 +197,7 @@ struct ath6kl_fw_ie {
 #define ATH6KL_CONF_ENABLE_11N			BIT(2)
 #define ATH6KL_CONF_ENABLE_TX_BURST		BIT(3)
 #define ATH6KL_CONF_SUSPEND_CUTPOWER		BIT(4)
+#define ATH6KL_CONF_UART_DEBUG			BIT(5)
 
 enum wlan_low_pwr_state {
 	WLAN_POWER_STATE_ON,
@@ -592,6 +595,7 @@ struct ath6kl {
 		u32 board_addr;
 		u32 refclk_hz;
 		u32 uarttx_pin;
+		u32 testscript_addr;
 
 		struct ath6kl_hw_fw {
 			const char *dir;
@@ -599,6 +603,8 @@ struct ath6kl {
 			const char *fw;
 			const char *tcmd;
 			const char *patch;
+			const char *utf;
+			const char *testscript;
 		} fw;
 
 		const char *fw_board;
@@ -623,6 +629,9 @@ struct ath6kl {
 
 	u8 *fw_patch;
 	size_t fw_patch_len;
+
+	u8 *fw_testscript;
+	size_t fw_testscript_len;
 
 	unsigned int fw_api;
 	unsigned long fw_capabilities[ATH6KL_CAPABILITY_LEN];
@@ -745,12 +754,18 @@ void ath6kl_wakeup_event(void *dev);
 void ath6kl_reset_device(struct ath6kl *ar, u32 target_type,
 			 bool wait_fot_compltn, bool cold_reset);
 void ath6kl_init_control_info(struct ath6kl_vif *vif);
-void ath6kl_deinit_if_data(struct ath6kl_vif *vif);
-void ath6kl_core_free(struct ath6kl *ar);
 struct ath6kl_vif *ath6kl_vif_first(struct ath6kl *ar);
 void ath6kl_cleanup_vif(struct ath6kl_vif *vif, bool wmi_ready);
 int ath6kl_init_hw_start(struct ath6kl *ar);
 int ath6kl_init_hw_stop(struct ath6kl *ar);
+int ath6kl_init_fetch_firmwares(struct ath6kl *ar);
+int ath6kl_init_hw_params(struct ath6kl *ar);
+
 void ath6kl_check_wow_status(struct ath6kl *ar);
+
+struct ath6kl *ath6kl_core_create(struct device *dev);
+int ath6kl_core_init(struct ath6kl *ar);
+void ath6kl_core_cleanup(struct ath6kl *ar);
+void ath6kl_core_destroy(struct ath6kl *ar);
 
 #endif /* CORE_H */

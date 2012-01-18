@@ -16,16 +16,13 @@
 
 #include <linux/moduleparam.h>
 #include <linux/inetdevice.h>
+#include <linux/export.h>
 
 #include "core.h"
 #include "cfg80211.h"
 #include "debug.h"
 #include "hif-ops.h"
 #include "testmode.h"
-
-static unsigned int ath6kl_p2p;
-
-module_param(ath6kl_p2p, uint, 0644);
 
 #define RATETAB_ENT(_rate, _rateid, _flags) {   \
 	.bitrate    = (_rate),                  \
@@ -1401,7 +1398,7 @@ static int ath6kl_cfg80211_del_iface(struct wiphy *wiphy,
 
 	ath6kl_cleanup_vif(vif, test_bit(WMI_READY, &ar->flag));
 
-	ath6kl_deinit_if_data(vif);
+	ath6kl_cfg80211_vif_cleanup(vif);
 
 	return 0;
 }
@@ -1939,6 +1936,7 @@ int ath6kl_cfg80211_suspend(struct ath6kl *ar,
 
 	return 0;
 }
+EXPORT_SYMBOL(ath6kl_cfg80211_suspend);
 
 int ath6kl_cfg80211_resume(struct ath6kl *ar)
 {
@@ -1990,6 +1988,7 @@ int ath6kl_cfg80211_resume(struct ath6kl *ar)
 
 	return 0;
 }
+EXPORT_SYMBOL(ath6kl_cfg80211_resume);
 
 #ifdef CONFIG_PM
 
@@ -2693,120 +2692,7 @@ void ath6kl_cfg80211_stop_all(struct ath6kl *ar)
 		ath6kl_cfg80211_stop(vif);
 }
 
-struct ath6kl *ath6kl_core_alloc(struct device *dev)
-{
-	struct ath6kl *ar;
-	struct wiphy *wiphy;
-	u8 ctr;
-
-	/* create a new wiphy for use with cfg80211 */
-	wiphy = wiphy_new(&ath6kl_cfg80211_ops, sizeof(struct ath6kl));
-
-	if (!wiphy) {
-		ath6kl_err("couldn't allocate wiphy device\n");
-		return NULL;
-	}
-
-	ar = wiphy_priv(wiphy);
-	ar->p2p = !!ath6kl_p2p;
-	ar->wiphy = wiphy;
-	ar->dev = dev;
-
-	ar->vif_max = 1;
-
-	ar->max_norm_iface = 1;
-
-	spin_lock_init(&ar->lock);
-	spin_lock_init(&ar->mcastpsq_lock);
-	spin_lock_init(&ar->list_lock);
-
-	init_waitqueue_head(&ar->event_wq);
-	sema_init(&ar->sem, 1);
-
-	INIT_LIST_HEAD(&ar->amsdu_rx_buffer_queue);
-	INIT_LIST_HEAD(&ar->vif_list);
-
-	clear_bit(WMI_ENABLED, &ar->flag);
-	clear_bit(SKIP_SCAN, &ar->flag);
-	clear_bit(DESTROY_IN_PROGRESS, &ar->flag);
-
-	ar->listen_intvl_b = A_DEFAULT_LISTEN_INTERVAL;
-	ar->tx_pwr = 0;
-
-	ar->intra_bss = 1;
-	ar->lrssi_roam_threshold = DEF_LRSSI_ROAM_THRESHOLD;
-
-	ar->state = ATH6KL_STATE_OFF;
-
-	memset((u8 *)ar->sta_list, 0,
-	       AP_MAX_NUM_STA * sizeof(struct ath6kl_sta));
-
-	/* Init the PS queues */
-	for (ctr = 0; ctr < AP_MAX_NUM_STA; ctr++) {
-		spin_lock_init(&ar->sta_list[ctr].psq_lock);
-		skb_queue_head_init(&ar->sta_list[ctr].psq);
-		skb_queue_head_init(&ar->sta_list[ctr].apsdq);
-	}
-
-	skb_queue_head_init(&ar->mcastpsq);
-
-	memcpy(ar->ap_country_code, DEF_AP_COUNTRY_CODE, 3);
-
-	return ar;
-}
-
-int ath6kl_register_ieee80211_hw(struct ath6kl *ar)
-{
-	struct wiphy *wiphy = ar->wiphy;
-	int ret;
-
-	wiphy->mgmt_stypes = ath6kl_mgmt_stypes;
-
-	wiphy->max_remain_on_channel_duration = 5000;
-
-	/* set device pointer for wiphy */
-	set_wiphy_dev(wiphy, ar->dev);
-
-	wiphy->interface_modes = BIT(NL80211_IFTYPE_STATION) |
-				 BIT(NL80211_IFTYPE_ADHOC) |
-				 BIT(NL80211_IFTYPE_AP);
-	if (ar->p2p) {
-		wiphy->interface_modes |= BIT(NL80211_IFTYPE_P2P_GO) |
-					  BIT(NL80211_IFTYPE_P2P_CLIENT);
-	}
-
-	/* max num of ssids that can be probed during scanning */
-	wiphy->max_scan_ssids = MAX_PROBED_SSID_INDEX;
-	wiphy->max_scan_ie_len = 1000; /* FIX: what is correct limit? */
-	wiphy->bands[IEEE80211_BAND_2GHZ] = &ath6kl_band_2ghz;
-	wiphy->bands[IEEE80211_BAND_5GHZ] = &ath6kl_band_5ghz;
-	wiphy->signal_type = CFG80211_SIGNAL_TYPE_MBM;
-
-	wiphy->cipher_suites = cipher_suites;
-	wiphy->n_cipher_suites = ARRAY_SIZE(cipher_suites);
-
-	wiphy->wowlan.flags = WIPHY_WOWLAN_MAGIC_PKT |
-			      WIPHY_WOWLAN_DISCONNECT |
-			      WIPHY_WOWLAN_GTK_REKEY_FAILURE  |
-			      WIPHY_WOWLAN_SUPPORTS_GTK_REKEY |
-			      WIPHY_WOWLAN_EAP_IDENTITY_REQ   |
-			      WIPHY_WOWLAN_4WAY_HANDSHAKE;
-	wiphy->wowlan.n_patterns = WOW_MAX_FILTERS_PER_LIST;
-	wiphy->wowlan.pattern_min_len = 1;
-	wiphy->wowlan.pattern_max_len = WOW_PATTERN_SIZE;
-
-	wiphy->max_sched_scan_ssids = 10;
-
-	ret = wiphy_register(wiphy);
-	if (ret < 0) {
-		ath6kl_err("couldn't register wiphy device\n");
-		return ret;
-	}
-
-	return 0;
-}
-
-static int ath6kl_init_if_data(struct ath6kl_vif *vif)
+static int ath6kl_cfg80211_vif_init(struct ath6kl_vif *vif)
 {
 	vif->aggr_cntxt = aggr_init(vif->ndev);
 	if (!vif->aggr_cntxt) {
@@ -2827,7 +2713,7 @@ static int ath6kl_init_if_data(struct ath6kl_vif *vif)
 	return 0;
 }
 
-void ath6kl_deinit_if_data(struct ath6kl_vif *vif)
+void ath6kl_cfg80211_vif_cleanup(struct ath6kl_vif *vif)
 {
 	struct ath6kl *ar = vif->ar;
 	struct ath6kl_mc_filter *mc_filter, *tmp;
@@ -2880,8 +2766,7 @@ struct net_device *ath6kl_interface_add(struct ath6kl *ar, char *name,
 
 	ath6kl_init_control_info(vif);
 
-	/* TODO: Pass interface specific pointer instead of ar */
-	if (ath6kl_init_if_data(vif))
+	if (ath6kl_cfg80211_vif_init(vif))
 		goto err;
 
 	if (register_netdevice(ndev))
@@ -2908,8 +2793,84 @@ err:
 	return NULL;
 }
 
-void ath6kl_deinit_ieee80211_hw(struct ath6kl *ar)
+int ath6kl_cfg80211_init(struct ath6kl *ar)
+{
+	struct wiphy *wiphy = ar->wiphy;
+	int ret;
+
+	wiphy->mgmt_stypes = ath6kl_mgmt_stypes;
+
+	wiphy->max_remain_on_channel_duration = 5000;
+
+	/* set device pointer for wiphy */
+	set_wiphy_dev(wiphy, ar->dev);
+
+	wiphy->interface_modes = BIT(NL80211_IFTYPE_STATION) |
+				 BIT(NL80211_IFTYPE_ADHOC) |
+				 BIT(NL80211_IFTYPE_AP);
+	if (ar->p2p) {
+		wiphy->interface_modes |= BIT(NL80211_IFTYPE_P2P_GO) |
+					  BIT(NL80211_IFTYPE_P2P_CLIENT);
+	}
+
+	/* max num of ssids that can be probed during scanning */
+	wiphy->max_scan_ssids = MAX_PROBED_SSID_INDEX;
+	wiphy->max_scan_ie_len = 1000; /* FIX: what is correct limit? */
+	wiphy->bands[IEEE80211_BAND_2GHZ] = &ath6kl_band_2ghz;
+	wiphy->bands[IEEE80211_BAND_5GHZ] = &ath6kl_band_5ghz;
+	wiphy->signal_type = CFG80211_SIGNAL_TYPE_MBM;
+
+	wiphy->cipher_suites = cipher_suites;
+	wiphy->n_cipher_suites = ARRAY_SIZE(cipher_suites);
+
+	wiphy->wowlan.flags = WIPHY_WOWLAN_MAGIC_PKT |
+			      WIPHY_WOWLAN_DISCONNECT |
+			      WIPHY_WOWLAN_GTK_REKEY_FAILURE  |
+			      WIPHY_WOWLAN_SUPPORTS_GTK_REKEY |
+			      WIPHY_WOWLAN_EAP_IDENTITY_REQ   |
+			      WIPHY_WOWLAN_4WAY_HANDSHAKE;
+	wiphy->wowlan.n_patterns = WOW_MAX_FILTERS_PER_LIST;
+	wiphy->wowlan.pattern_min_len = 1;
+	wiphy->wowlan.pattern_max_len = WOW_PATTERN_SIZE;
+
+	wiphy->max_sched_scan_ssids = 10;
+
+	ret = wiphy_register(wiphy);
+	if (ret < 0) {
+		ath6kl_err("couldn't register wiphy device\n");
+		return ret;
+	}
+
+	return 0;
+}
+
+void ath6kl_cfg80211_cleanup(struct ath6kl *ar)
 {
 	wiphy_unregister(ar->wiphy);
+}
+
+struct ath6kl *ath6kl_cfg80211_create(void)
+{
+	struct ath6kl *ar;
+	struct wiphy *wiphy;
+
+	/* create a new wiphy for use with cfg80211 */
+	wiphy = wiphy_new(&ath6kl_cfg80211_ops, sizeof(struct ath6kl));
+
+	if (!wiphy) {
+		ath6kl_err("couldn't allocate wiphy device\n");
+		return NULL;
+	}
+
+	ar = wiphy_priv(wiphy);
+	ar->wiphy = wiphy;
+
+	return ar;
+}
+
+/* Note: ar variable must not be accessed after calling this! */
+void ath6kl_cfg80211_destroy(struct ath6kl *ar)
+{
 	wiphy_free(ar->wiphy);
 }
+

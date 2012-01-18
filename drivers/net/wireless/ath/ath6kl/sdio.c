@@ -1261,7 +1261,7 @@ static int ath6kl_sdio_probe(struct sdio_func *func,
 	for (count = 0; count < BUS_REQUEST_MAX_NUM; count++)
 		ath6kl_sdio_free_bus_req(ar_sdio, &ar_sdio->bus_req[count]);
 
-	ar = ath6kl_core_alloc(&ar_sdio->func->dev);
+	ar = ath6kl_core_create(&ar_sdio->func->dev);
 	if (!ar) {
 		ath6kl_err("Failed to alloc ath6kl core\n");
 		ret = -ENOMEM;
@@ -1291,7 +1291,7 @@ static int ath6kl_sdio_probe(struct sdio_func *func,
 	return ret;
 
 err_core_alloc:
-	ath6kl_core_free(ar_sdio->ar);
+	ath6kl_core_destroy(ar_sdio->ar);
 err_dma:
 	kfree(ar_sdio->dma_buffer);
 err_hif:
@@ -1330,7 +1330,7 @@ static const struct sdio_device_id ath6kl_sdio_devices[] = {
 MODULE_DEVICE_TABLE(sdio, ath6kl_sdio_devices);
 
 static struct sdio_driver ath6kl_sdio_driver = {
-	.name = "ath6kl",
+	.name = "ath6kl_sdio",
 	.id_table = ath6kl_sdio_devices,
 	.probe = ath6kl_sdio_probe,
 	.remove = ath6kl_sdio_remove,
