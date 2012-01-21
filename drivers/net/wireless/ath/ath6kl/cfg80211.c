@@ -2808,7 +2808,7 @@ int ath6kl_register_ieee80211_hw(struct ath6kl *ar)
 
 static int ath6kl_init_if_data(struct ath6kl_vif *vif)
 {
-	vif->aggr_cntxt = aggr_init(vif->ndev);
+	vif->aggr_cntxt = aggr_init(vif);
 	if (!vif->aggr_cntxt) {
 		ath6kl_err("failed to initialize aggr\n");
 		return -ENOMEM;
