@@ -196,8 +196,7 @@ struct ath6kl_fw_ie {
 #define ATH6KL_CONF_IGNORE_PS_FAIL_EVT_IN_SCAN  BIT(1)
 #define ATH6KL_CONF_ENABLE_11N			BIT(2)
 #define ATH6KL_CONF_ENABLE_TX_BURST		BIT(3)
-#define ATH6KL_CONF_SUSPEND_CUTPOWER		BIT(4)
-#define ATH6KL_CONF_UART_DEBUG			BIT(5)
+#define ATH6KL_CONF_UART_DEBUG			BIT(4)
 
 enum wlan_low_pwr_state {
 	WLAN_POWER_STATE_ON,
@@ -452,6 +451,7 @@ enum ath6kl_vif_state {
 	DTIM_PERIOD_AVAIL,
 	WLAN_ENABLED,
 	STATS_UPDATE_PEND,
+	HOST_SLEEP_MODE_CMD_PROCESSED,
 };
 
 struct ath6kl_vif {
@@ -532,6 +532,7 @@ struct ath6kl {
 	struct wiphy *wiphy;
 
 	enum ath6kl_state state;
+	unsigned int testmode;
 
 	struct ath6kl_bmi bmi;
 	const struct ath6kl_hif_ops *hif_ops;
@@ -618,6 +619,7 @@ struct ath6kl {
 	} hw;
 
 	u16 conf_flags;
+	u16 suspend_mode;
 	wait_queue_head_t event_wq;
 	struct ath6kl_mbox_info mbox_info;
 
@@ -714,7 +716,8 @@ void ath6kl_free_cookie(struct ath6kl *ar, struct ath6kl_cookie *cookie);
 int ath6kl_data_tx(struct sk_buff *skb, struct net_device *dev);
 
 struct aggr_info *aggr_init(struct ath6kl_vif *vif);
-void aggr_conn_init(struct ath6kl_vif *vif, struct aggr_info_conn *aggr_conn);
+void aggr_conn_init(struct ath6kl_vif *vif, struct aggr_info *aggr_info,
+		    struct aggr_info_conn *aggr_conn);
 void ath6kl_rx_refill(struct htc_target *target,
 		      enum htc_endpoint_id endpoint);
 void ath6kl_refill_amsdu_rxbufs(struct ath6kl *ar, int count);
