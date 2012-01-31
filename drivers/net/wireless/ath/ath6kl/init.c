@@ -27,11 +27,11 @@
 
 unsigned int debug_mask;
 static unsigned int testmode;
-static bool suspend_cutpower;
+static unsigned int suspend_mode;
 
 module_param(debug_mask, uint, 0644);
 module_param(testmode, uint, 0644);
-module_param(suspend_cutpower, bool, 0444);
+module_param(suspend_mode, uint, 0644);
 
 static const struct ath6kl_hw hw_list[] = {
 	{
@@ -1764,8 +1764,12 @@ int ath6kl_core_init(struct ath6kl *ar)
 	ar->conf_flags = ATH6KL_CONF_IGNORE_ERP_BARKER |
 			 ATH6KL_CONF_ENABLE_11N | ATH6KL_CONF_ENABLE_TX_BURST;
 
-	if (suspend_cutpower)
-		ar->conf_flags |= ATH6KL_CONF_SUSPEND_CUTPOWER;
+	if (suspend_mode &&
+	     suspend_mode >= WLAN_POWER_STATE_CUT_PWR &&
+	     suspend_mode <= WLAN_POWER_STATE_WOW)
+		ar->suspend_mode = suspend_mode;
+	else
+		ar->suspend_mode = 0;
 
 	ar->wiphy->flags |= WIPHY_FLAG_SUPPORTS_FW_ROAM |
 			    WIPHY_FLAG_HAVE_AP_SME |
