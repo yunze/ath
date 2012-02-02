@@ -52,10 +52,11 @@ struct ath6kl_sta *ath6kl_find_sta_by_aid(struct ath6kl *ar, u8 aid)
 	return conn;
 }
 
-static void ath6kl_add_new_sta(struct ath6kl *ar, u8 *mac, u16 aid, u8 *wpaie,
-			       size_t ielen, u8 keymgmt, u8 ucipher, u8 auth,
-			       u8 apsd_info)
+static void ath6kl_add_new_sta(struct ath6kl_vif *vif, u8 *mac, u16 aid,
+			       u8 *wpaie, size_t ielen, u8 keymgmt,
+			       u8 ucipher, u8 auth, u8 apsd_info)
 {
+	struct ath6kl *ar = vif->ar;
 	struct ath6kl_sta *sta;
 	u8 free_slot;
 
@@ -73,6 +74,7 @@ static void ath6kl_add_new_sta(struct ath6kl *ar, u8 *mac, u16 aid, u8 *wpaie,
 
 	ar->sta_list_index = ar->sta_list_index | (1 << free_slot);
 	ar->ap_stats.sta[free_slot].aid = cpu_to_le32(aid);
+	aggr_conn_init(vif, vif->aggr_cntxt, sta->aggr_conn);
 }
 
 static void ath6kl_sta_cleanup(struct ath6kl *ar, u8 i)
@@ -93,7 +95,7 @@ static void ath6kl_sta_cleanup(struct ath6kl *ar, u8 i)
 	sta->sta_flags = 0;
 
 	ar->sta_list_index = ar->sta_list_index & ~(1 << i);
-
+	aggr_reset_state(sta->aggr_conn);
 }
 
 static u8 ath6kl_remove_sta(struct ath6kl *ar, u8 *mac, u16 reason)
@@ -430,7 +432,6 @@ void ath6kl_connect_ap_mode_sta(struct ath6kl_vif *vif, u16 aid, u8 *mac_addr,
 				u8 keymgmt, u8 ucipher, u8 auth,
 				u8 assoc_req_len, u8 *assoc_info, u8 apsd_info)
 {
-	struct ath6kl *ar = vif->ar;
 	u8 *ies = NULL, *wpa_ie = NULL, *pos;
 	size_t ies_len = 0;
 	struct station_info sinfo;
@@ -484,7 +485,7 @@ void ath6kl_connect_ap_mode_sta(struct ath6kl_vif *vif, u16 aid, u8 *mac_addr,
 		pos += 2 + pos[1];
 	}
 
-	ath6kl_add_new_sta(ar, mac_addr, aid, wpa_ie,
+	ath6kl_add_new_sta(vif, mac_addr, aid, wpa_ie,
 			   wpa_ie ? 2 + wpa_ie[1] : 0,
 			   keymgmt, ucipher, auth, apsd_info);
 
@@ -602,7 +603,7 @@ void ath6kl_connect_event(struct ath6kl_vif *vif, u16 channel, u8 *bssid,
 	netif_carrier_on(vif->ndev);
 	spin_unlock_bh(&vif->if_lock);
 
-	aggr_reset_state(vif->aggr_cntxt);
+	aggr_reset_state(vif->aggr_cntxt->aggr_conn);
 	vif->reconnect_flag = 0;
 
 	if ((vif->nw_type == ADHOC_NETWORK) && ar->ibss_ps_enable) {
@@ -924,7 +925,7 @@ void ath6kl_disconnect_event(struct ath6kl_vif *vif, u8 reason, u8 *bssid,
 				       assoc_resp_len, assoc_info,
 				       prot_reason_status);
 
-	aggr_reset_state(vif->aggr_cntxt);
+	aggr_reset_state(vif->aggr_cntxt->aggr_conn);
 
 	del_timer(&vif->disconnect_timer);
 

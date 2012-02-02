@@ -1360,6 +1360,8 @@ enum wmi_event_id {
 	WMI_P2P_START_SDPD_EVENTID,
 	WMI_P2P_SDPD_RX_EVENTID,
 
+	WMI_SET_HOST_SLEEP_MODE_CMD_PROCESSED_EVENTID = 0x1047,
+
 	WMI_THIN_RESERVED_START_EVENTID = 0x8000,
 	/* Events in this range are reserved for thinmode */
 	WMI_THIN_RESERVED_END_EVENTID = 0x8fff,
@@ -2464,7 +2466,8 @@ int ath6kl_wmi_set_wow_mode_cmd(struct wmi *wmi, u8 if_idx,
 				u32 filter, u16 host_req_delay);
 int ath6kl_wmi_add_wow_pattern_cmd(struct wmi *wmi, u8 if_idx,
 				   u8 list_id, u8 filter_size,
-				   u8 filter_offset, u8 *filter, u8 *mask);
+				   u8 filter_offset, const u8 *filter,
+				   const u8 *mask);
 int ath6kl_wmi_del_wow_pattern_cmd(struct wmi *wmi, u8 if_idx,
 				   u16 list_id, u16 filter_id);
 int ath6kl_wmi_set_roam_lrssi_cmd(struct wmi *wmi, u8 lrssi);

@@ -28,10 +28,6 @@
 #include "hif-ops.h"
 #include "htc-ops.h"
 
-static unsigned int testmode;
-
-module_param(testmode, uint, 0644);
-
 static const struct ath6kl_hw hw_list[] = {
 	{
 		.id				= AR6003_HW_2_0_VERSION,
@@ -736,6 +732,46 @@ static int ath6kl_fetch_otp_file(struct ath6kl *ar)
 	return 0;
 }
 
+static int ath6kl_fetch_testmode_file(struct ath6kl *ar)
+{
+	char filename[100];
+	int ret;
+
+	if (ar->testmode == 0)
+		return 0;
+
+	ath6kl_dbg(ATH6KL_DBG_BOOT, "testmode %d\n", ar->testmode);
+
+	if (ar->testmode == 2) {
+		if (ar->hw.fw.utf == NULL) {
+			ath6kl_warn("testmode 2 not supported\n");
+			return -EOPNOTSUPP;
+		}
+
+		snprintf(filename, sizeof(filename), "%s/%s",
+			 ar->hw.fw.dir, ar->hw.fw.utf);
+	} else {
+		if (ar->hw.fw.tcmd == NULL) {
+			ath6kl_warn("testmode 1 not supported\n");
+			return -EOPNOTSUPP;
+		}
+
+		snprintf(filename, sizeof(filename), "%s/%s",
+			 ar->hw.fw.dir, ar->hw.fw.tcmd);
+	}
+
+	set_bit(TESTMODE, &ar->flag);
+
+	ret = ath6kl_get_fw(ar, filename, &ar->fw, &ar->fw_len);
+	if (ret) {
+		ath6kl_err("Failed to get testmode %d firmware file %s: %d\n",
+			   ar->testmode, filename, ret);
+		return ret;
+	}
+
+	return 0;
+}
+
 static int ath6kl_fetch_fw_file(struct ath6kl *ar)
 {
 	char filename[100];
@@ -744,31 +780,6 @@ static int ath6kl_fetch_fw_file(struct ath6kl *ar)
 	if (ar->fw != NULL)
 		return 0;
 
-	if (testmode) {
-		ath6kl_dbg(ATH6KL_DBG_BOOT, "testmode %d\n",
-				testmode);
-		if (testmode == 2) {
-			if (ar->hw.fw.utf == NULL) {
-				ath6kl_warn("testmode 2 not supported\n");
-				return -EOPNOTSUPP;
-			}
-
-			snprintf(filename, sizeof(filename), "%s/%s",
-				ar->hw.fw.dir, ar->hw.fw.utf);
-		} else {
-			if (ar->hw.fw.tcmd == NULL) {
-				ath6kl_warn("testmode 1 not supported\n");
-				return -EOPNOTSUPP;
-			}
-
-			snprintf(filename, sizeof(filename), "%s/%s",
-				ar->hw.fw.dir, ar->hw.fw.tcmd);
-		}
-		set_bit(TESTMODE, &ar->flag);
-
-		goto get_fw;
-	}
-
 	/* FIXME: remove WARN_ON() as we won't support FW API 1 for long */
 	if (WARN_ON(ar->hw.fw.fw == NULL))
 		return -EINVAL;
@@ -776,7 +787,6 @@ static int ath6kl_fetch_fw_file(struct ath6kl *ar)
 	snprintf(filename, sizeof(filename), "%s/%s",
 		 ar->hw.fw.dir, ar->hw.fw.fw);
 
-get_fw:
 	ret = ath6kl_get_fw(ar, filename, &ar->fw, &ar->fw_len);
 	if (ret) {
 		ath6kl_err("Failed to get firmware file %s: %d\n",
@@ -817,7 +827,7 @@ static int ath6kl_fetch_testscript_file(struct ath6kl *ar)
 	char filename[100];
 	int ret;
 
-	if (testmode != 2)
+	if (ar->testmode != 2)
 		return 0;
 
 	if (ar->fw_testscript != NULL)
@@ -932,6 +942,10 @@ static int ath6kl_fetch_fw_apin(struct ath6kl *ar, const char *name)
 			ath6kl_dbg(ATH6KL_DBG_BOOT, "found fw image ie (%zd B)\n",
 				ie_len);
 
+			/* in testmode we already might have a fw file */
+			if (ar->fw != NULL)
+				break;
+
 			ar->fw = kmemdup(data, ie_len, GFP_KERNEL);
 
 			if (ar->fw == NULL) {
@@ -1040,6 +1054,10 @@ int ath6kl_init_fetch_firmwares(struct ath6kl *ar)
 	int ret;
 
 	ret = ath6kl_fetch_board_file(ar);
+	if (ret)
+		return ret;
+
+	ret = ath6kl_fetch_testmode_file(ar);
 	if (ret)
 		return ret;
 
@@ -1288,7 +1306,7 @@ static int ath6kl_upload_testscript(struct ath6kl *ar)
 	u32 address, param;
 	int ret;
 
-	if (testmode != 2)
+	if (ar->testmode != 2)
 		return 0;
 
 	if (ar->fw_testscript == NULL)
@@ -1457,7 +1475,7 @@ static int ath6kl_init_upload(struct ath6kl *ar)
 
 int ath6kl_init_hw_params(struct ath6kl *ar)
 {
-	const struct ath6kl_hw *hw;
+	const struct ath6kl_hw *uninitialized_var(hw);
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(hw_list); i++) {
@@ -1665,6 +1683,7 @@ void ath6kl_cleanup_vif(struct ath6kl_vif *vif, bool wmi_ready)
 void ath6kl_stop_txrx(struct ath6kl *ar)
 {
 	struct ath6kl_vif *vif, *tmp_vif;
+	int i;
 
 	set_bit(DESTROY_IN_PROGRESS, &ar->flag);
 
@@ -1672,6 +1691,9 @@ void ath6kl_stop_txrx(struct ath6kl *ar)
 		ath6kl_err("down_interruptible failed\n");
 		return;
 	}
+
+	for (i = 0; i < AP_MAX_NUM_STA; i++)
+		aggr_reset_state(ar->sta_list[i].aggr_conn);
 
 	spin_lock_bh(&ar->list_lock);
 	list_for_each_entry_safe(vif, tmp_vif, &ar->vif_list, list) {

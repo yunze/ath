@@ -127,7 +127,7 @@ static void run_again(struct ieee80211_if_managed *ifmgd,
 
 void ieee80211_sta_reset_beacon_monitor(struct ieee80211_sub_if_data *sdata)
 {
-	if (sdata->local->hw.flags & IEEE80211_HW_BEACON_FILTER)
+	if (sdata->vif.driver_flags & IEEE80211_VIF_BEACON_FILTER)
 		return;
 
 	mod_timer(&sdata->u.mgd.bcn_mon_timer,
@@ -547,7 +547,7 @@ static void ieee80211_handle_pwr_constr(struct ieee80211_sub_if_data *sdata,
 	if (pwr_constr_elem_len != 1)
 		return;
 
-	if ((*pwr_constr_elem <= conf->channel->max_power) &&
+	if ((*pwr_constr_elem <= conf->channel->max_reg_power) &&
 	    (*pwr_constr_elem != sdata->local->power_constr_level)) {
 		sdata->local->power_constr_level = *pwr_constr_elem;
 		ieee80211_hw_config(sdata->local, 0);
@@ -1043,7 +1043,7 @@ static void ieee80211_set_associated(struct ieee80211_sub_if_data *sdata,
 	bss_info_changed |= BSS_CHANGED_BSSID;
 
 	/* Tell the driver to monitor connection quality (if supported) */
-	if ((local->hw.flags & IEEE80211_HW_SUPPORTS_CQM_RSSI) &&
+	if (sdata->vif.driver_flags & IEEE80211_VIF_SUPPORTS_CQM_RSSI &&
 	    bss_conf->cqm_rssi_thold)
 		bss_info_changed |= BSS_CHANGED_CQM;
 
@@ -1587,10 +1587,19 @@ static bool ieee80211_assoc_success(struct ieee80211_work *wk,
 		return false;
 	}
 
-	sta_info_move_state(sta, IEEE80211_STA_AUTH);
-	sta_info_move_state(sta, IEEE80211_STA_ASSOC);
-	if (!(ifmgd->flags & IEEE80211_STA_CONTROL_PORT))
-		sta_info_move_state(sta, IEEE80211_STA_AUTHORIZED);
+	err = sta_info_move_state(sta, IEEE80211_STA_AUTH);
+	if (!err)
+		err = sta_info_move_state(sta, IEEE80211_STA_ASSOC);
+	if (!err && !(ifmgd->flags & IEEE80211_STA_CONTROL_PORT))
+		err = sta_info_move_state(sta, IEEE80211_STA_AUTHORIZED);
+	if (err) {
+		printk(KERN_DEBUG
+		       "%s: failed to move station %pM to desired state\n",
+		       sdata->name, sta->sta.addr);
+		WARN_ON(__sta_info_destroy(sta));
+		mutex_unlock(&sdata->local->sta_mtx);
+		return false;
+	}
 
 	rates = 0;
 	basic_rates = 0;
@@ -1882,7 +1891,7 @@ static void ieee80211_rx_mgmt_beacon(struct ieee80211_sub_if_data *sdata,
 
 	if (bss_conf->cqm_rssi_thold &&
 	    ifmgd->count_beacon_signal >= IEEE80211_SIGNAL_AVE_MIN_COUNT &&
-	    !(local->hw.flags & IEEE80211_HW_SUPPORTS_CQM_RSSI)) {
+	    !(sdata->vif.driver_flags & IEEE80211_VIF_SUPPORTS_CQM_RSSI)) {
 		int sig = ifmgd->ave_beacon_signal / 16;
 		int last_event = ifmgd->last_cqm_event_signal;
 		int thold = bss_conf->cqm_rssi_thold;
@@ -2750,7 +2759,6 @@ int ieee80211_mgd_deauth(struct ieee80211_sub_if_data *sdata,
 {
 	struct ieee80211_local *local = sdata->local;
 	struct ieee80211_if_managed *ifmgd = &sdata->u.mgd;
-	struct ieee80211_work *wk;
 	u8 bssid[ETH_ALEN];
 	bool assoc_bss = false;
 
@@ -2763,29 +2771,46 @@ int ieee80211_mgd_deauth(struct ieee80211_sub_if_data *sdata,
 		assoc_bss = true;
 	} else {
 		bool not_auth_yet = false;
+		struct ieee80211_work *tmp, *wk = NULL;
 
 		mutex_unlock(&ifmgd->mtx);
 
 		mutex_lock(&local->mtx);
-		list_for_each_entry(wk, &local->work_list, list) {
-			if (wk->sdata != sdata)
+		list_for_each_entry(tmp, &local->work_list, list) {
+			if (tmp->sdata != sdata)
 				continue;
 
-			if (wk->type != IEEE80211_WORK_DIRECT_PROBE &&
-			    wk->type != IEEE80211_WORK_AUTH &&
-			    wk->type != IEEE80211_WORK_ASSOC &&
-			    wk->type != IEEE80211_WORK_ASSOC_BEACON_WAIT)
+			if (tmp->type != IEEE80211_WORK_DIRECT_PROBE &&
+			    tmp->type != IEEE80211_WORK_AUTH &&
+			    tmp->type != IEEE80211_WORK_ASSOC &&
+			    tmp->type != IEEE80211_WORK_ASSOC_BEACON_WAIT)
 				continue;
 
-			if (memcmp(req->bss->bssid, wk->filter_ta, ETH_ALEN))
+			if (memcmp(req->bss->bssid, tmp->filter_ta, ETH_ALEN))
 				continue;
 
-			not_auth_yet = wk->type == IEEE80211_WORK_DIRECT_PROBE;
-			list_del_rcu(&wk->list);
-			free_work(wk);
+			not_auth_yet = tmp->type == IEEE80211_WORK_DIRECT_PROBE;
+			list_del_rcu(&tmp->list);
+			synchronize_rcu();
+			wk = tmp;
 			break;
 		}
 		mutex_unlock(&local->mtx);
+
+		if (wk && wk->type == IEEE80211_WORK_ASSOC) {
+			/* clean up dummy sta & TX sync */
+			sta_info_destroy_addr(wk->sdata, wk->filter_ta);
+			if (wk->assoc.synced)
+				drv_finish_tx_sync(local, wk->sdata,
+						   wk->filter_ta,
+						   IEEE80211_TX_SYNC_ASSOC);
+		} else if (wk && wk->type == IEEE80211_WORK_AUTH) {
+			if (wk->probe_auth.synced)
+				drv_finish_tx_sync(local, wk->sdata,
+						   wk->filter_ta,
+						   IEEE80211_TX_SYNC_AUTH);
+		}
+		kfree(wk);
 
 		/*
 		 * If somebody requests authentication and we haven't
