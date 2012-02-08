@@ -442,6 +442,7 @@ static enum htc_send_queue_result htc_try_send(struct htc_target *target,
 		list_splice_tail_init(&send_queue, &ep->txq);
 		if (!list_empty(&send_queue)) {
 			WARN_ON(1);
+			spin_unlock_bh(&target->tx_lock);
 			return HTC_SEND_QUEUE_DROP;
 		}
 		INIT_LIST_HEAD(&send_queue);
