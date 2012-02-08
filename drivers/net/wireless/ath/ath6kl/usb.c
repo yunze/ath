@@ -63,7 +63,6 @@ struct ath6kl_usb_pipe {
 struct ath6kl_usb {
 	spinlock_t cs_lock;
 	spinlock_t tx_lock;
-	spinlock_t rx_lock;
 	struct ath6kl_hif_pipe_callbacks htc_callbacks;
 	struct usb_device *udev;
 	struct usb_interface *interface;
@@ -635,7 +634,6 @@ static struct ath6kl_usb *ath6kl_usb_create(struct usb_interface *interface)
 	memset(ar_usb, 0, sizeof(struct ath6kl_usb));
 	usb_set_intfdata(interface, ar_usb);
 	spin_lock_init(&(ar_usb->cs_lock));
-	spin_lock_init(&(ar_usb->rx_lock));
 	spin_lock_init(&(ar_usb->tx_lock));
 	ar_usb->udev = dev;
 	ar_usb->interface = interface;
