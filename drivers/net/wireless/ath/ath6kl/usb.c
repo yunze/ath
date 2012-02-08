@@ -186,9 +186,9 @@ static int ath6kl_usb_alloc_pipe_resources(struct ath6kl_usb_pipe *pipe,
 		urb_context = (struct ath6kl_urb_context *)
 		    kzalloc(sizeof(struct ath6kl_urb_context), GFP_KERNEL);
 		if (urb_context == NULL)
+			/* FIXME: set status to -ENOMEM */
 			break;
 
-		memset(urb_context, 0, sizeof(struct ath6kl_urb_context));
 		urb_context->pipe = pipe;
 
 		/*
