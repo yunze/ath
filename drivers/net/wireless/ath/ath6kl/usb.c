@@ -117,9 +117,6 @@ struct ath6kl_usb_ctrl_diag_resp_read {
 	__le32 value;
 } __packed;
 
-#define USB_CTRL_MAX_DIAG_CMD_SIZE  (sizeof(struct ath6kl_usb_ctrl_diag_cmd_write))
-#define USB_CTRL_MAX_DIAG_RESP_SIZE (sizeof(struct ath6kl_usb_ctrl_diag_resp_read))
-
 /* function declarations */
 static void ath6kl_usb_recv_complete(struct urb *urb);
 
@@ -494,16 +491,6 @@ static void ath6kl_usb_start_recv_pipes(struct ath6kl_usb *device)
 	    device->pipes[ATH6KL_USB_PIPE_RX_DATA].urb_alloc / 2;
 	ath6kl_usb_post_recv_transfers(&device->pipes[ATH6KL_USB_PIPE_RX_DATA],
 				    ATH6KL_USB_RX_BUFFER_SIZE);
-	/*
-	* Disable rxdata2 directly, it will be enabled
-	* if FW enable rxdata2
-	*/
-	if (0) {
-		device->pipes[ATH6KL_USB_PIPE_RX_DATA2].urb_cnt_thresh =
-		    device->pipes[ATH6KL_USB_PIPE_RX_DATA2].urb_alloc / 2;
-		ath6kl_usb_post_recv_transfers(&device->pipes[ATH6KL_USB_PIPE_RX_DATA2],
-					    ATH6KL_USB_RX_BUFFER_SIZE);
-	}
 }
 
 /* hif usb rx/tx completion functions */
@@ -1190,11 +1177,7 @@ static int ath6kl_usb_resume(struct usb_interface *interface)
 {
 	struct ath6kl_usb *device;
 	device = (struct ath6kl_usb *)usb_get_intfdata(interface);
-	/* re-post urbs? */
-	if (0) {
-		ath6kl_usb_post_recv_transfers(&device->pipes[ATH6KL_USB_PIPE_RX_CTRL],
-					    ATH6KL_USB_RX_BUFFER_SIZE);
-	}
+
 	ath6kl_usb_post_recv_transfers(&device->pipes[ATH6KL_USB_PIPE_RX_DATA],
 				    ATH6KL_USB_RX_BUFFER_SIZE);
 	ath6kl_usb_post_recv_transfers(&device->pipes[ATH6KL_USB_PIPE_RX_DATA2],
