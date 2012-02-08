@@ -651,4 +651,8 @@ static inline int get_queue_depth(struct list_head *queue)
 	return depth;
 }
 
+void ath6kl_htc_pipe_attach(struct ath6kl *ar);
+void ath6kl_htc_mbox_attach(struct ath6kl *ar);
+
+
 #endif

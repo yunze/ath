@@ -426,6 +426,11 @@ enum ath6kl_hif_type {
 	ATH6KL_HIF_TYPE_USB,
 };
 
+enum ath6kl_htc_type {
+	ATH6KL_HTC_TYPE_MBOX,
+	ATH6KL_HTC_TYPE_PIPE,
+};
+
 /* Max number of filters that hw supports */
 #define ATH6K_MAX_MC_FILTERS_PER_LIST 7
 struct ath6kl_mc_filter {
@@ -774,11 +779,9 @@ int ath6kl_init_fetch_firmwares(struct ath6kl *ar);
 int ath6kl_init_hw_params(struct ath6kl *ar);
 
 void ath6kl_check_wow_status(struct ath6kl *ar);
-void ath6kl_htc_pipe_attach(struct ath6kl *ar);
-void ath6kl_htc_mbox_attach(struct ath6kl *ar);
 
 struct ath6kl *ath6kl_core_create(struct device *dev);
-int ath6kl_core_init(struct ath6kl *ar);
+int ath6kl_core_init(struct ath6kl *ar, enum ath6kl_htc_type htc_type);
 void ath6kl_core_cleanup(struct ath6kl *ar);
 void ath6kl_core_destroy(struct ath6kl *ar);
 
