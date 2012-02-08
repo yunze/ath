@@ -405,8 +405,6 @@ static void ath6kl_usb_post_recv_transfers(struct ath6kl_usb_pipe *recv_pipe,
 					int buffer_length)
 {
 	struct ath6kl_urb_context *urb_context;
-	u8 *data;
-	u32 len;
 	struct urb *urb;
 	int usb_status;
 
@@ -420,9 +418,6 @@ static void ath6kl_usb_post_recv_transfers(struct ath6kl_usb_pipe *recv_pipe,
 		if (urb_context->buf == NULL)
 			goto err_cleanup_urb;
 
-		data = urb_context->buf->data;
-		len = urb_context->buf->len;
-
 		urb = usb_alloc_urb(0, GFP_ATOMIC);
 		if (urb == NULL)
 			goto err_cleanup_urb;
@@ -430,7 +425,7 @@ static void ath6kl_usb_post_recv_transfers(struct ath6kl_usb_pipe *recv_pipe,
 		usb_fill_bulk_urb(urb,
 				  recv_pipe->ar_usb->udev,
 				  recv_pipe->usb_pipe_handle,
-				  data,
+				  urb_context->buf->data,
 				  buffer_length,
 				  ath6kl_usb_recv_complete, urb_context);
 
