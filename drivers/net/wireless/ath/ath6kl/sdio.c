@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2004-2011 Atheros Communications Inc.
+ * Copyright (c) 2011-2012 Qualcomm Atheros, Inc.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -601,6 +602,8 @@ static struct hif_scatter_req *ath6kl_sdio_scatter_req_get(struct ath6kl *ar)
 		node = list_first_entry(&ar_sdio->scat_req,
 					struct hif_scatter_req, list);
 		list_del(&node->list);
+
+		node->scat_q_depth = get_queue_depth(&ar_sdio->scat_req);
 	}
 
 	spin_unlock_bh(&ar_sdio->scat_lock);

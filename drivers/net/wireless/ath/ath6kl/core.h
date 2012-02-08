@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2010-2011 Atheros Communications Inc.
+ * Copyright (c) 2011-2012 Qualcomm Atheros, Inc.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -652,10 +653,12 @@ struct ath6kl {
 
 #ifdef CONFIG_ATH6KL_DEBUG
 	struct {
-		struct circ_buf fwlog_buf;
-		spinlock_t fwlog_lock;
-		void *fwlog_tmp;
+		struct sk_buff_head fwlog_queue;
+		struct completion fwlog_completion;
+		bool fwlog_open;
+
 		u32 fwlog_mask;
+
 		unsigned int dbgfs_diag_reg;
 		u32 diag_reg_addr_wr;
 		u32 diag_reg_val_wr;
