@@ -1460,7 +1460,7 @@ free_packet:
 }
 
 /* htc export functions */
-void *ath6kl_htc_pipe_create(struct ath6kl *ar)
+static void *ath6kl_htc_pipe_create(struct ath6kl *ar)
 {
 	int status = 0;
 	struct ath6kl_hif_pipe_callbacks htc_callbacks;
@@ -1751,7 +1751,7 @@ static int ath6kl_htc_pipe_add_rxbuf_multiple(struct htc_target *handle,
 	return status;
 }
 
-void ath6kl_htc_pipe_indicate_activity_change(
+static void ath6kl_htc_pipe_indicate_activity_change(
 				struct htc_target *handle,
 				enum htc_endpoint_id Endpoint,
 				bool Active)
@@ -1762,16 +1762,6 @@ void ath6kl_htc_pipe_indicate_activity_change(
 static void ath6kl_htc_pipe_flush_rx_buf(struct htc_target *target)
 {
 	/* TODO */
-}
-
-void ath6kl_htc_set_credit_dist(struct htc_target *target,
-			 struct ath6kl_htc_credit_info *cred_info,
-			 u16 svc_pri_order[], int len)
-{
-	/*
-	 * not supported since this transport does not use a credit
-	 * based flow control mechanism
-	 */
 }
 
 static int ath6kl_htc_pipe_credit_setup(struct htc_target *target,
