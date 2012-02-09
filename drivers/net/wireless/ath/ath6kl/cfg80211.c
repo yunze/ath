@@ -2584,6 +2584,76 @@ static int ath6kl_send_go_probe_resp(struct ath6kl_vif *vif,
 	return ret;
 }
 
+static bool ath6kl_mgmt_powersave_ap(struct ath6kl_vif *vif,
+				     u32 id,
+				     u32 freq,
+				     u32 wait,
+				     const u8 *buf,
+				     size_t len,
+				     bool *more_data,
+				     bool no_cck)
+{
+	struct ieee80211_mgmt *mgmt;
+	struct ath6kl_sta *conn;
+	bool is_psq_empty = false;
+	struct ath6kl_mgmt_buff *mgmt_buf;
+	size_t mgmt_buf_size;
+	struct ath6kl *ar = vif->ar;
+
+	mgmt = (struct ieee80211_mgmt *) buf;
+	if (is_multicast_ether_addr(mgmt->da))
+		return false;
+
+	conn = ath6kl_find_sta(vif, mgmt->da);
+	if (!conn)
+		return false;
+
+	if (conn->sta_flags & STA_PS_SLEEP) {
+		if (!(conn->sta_flags & STA_PS_POLLED)) {
+			/* Queue the frames if the STA is sleeping */
+			mgmt_buf_size = len + sizeof(struct ath6kl_mgmt_buff);
+			mgmt_buf = kmalloc(mgmt_buf_size, GFP_KERNEL);
+			if (!mgmt_buf)
+				return false;
+
+			INIT_LIST_HEAD(&mgmt_buf->list);
+			mgmt_buf->id = id;
+			mgmt_buf->freq = freq;
+			mgmt_buf->wait = wait;
+			mgmt_buf->len = len;
+			mgmt_buf->no_cck = no_cck;
+			memcpy(mgmt_buf->buf, buf, len);
+			spin_lock_bh(&conn->psq_lock);
+			is_psq_empty = skb_queue_empty(&conn->psq) &&
+					(conn->mgmt_psq_len == 0);
+			list_add_tail(&mgmt_buf->list, &conn->mgmt_psq);
+			conn->mgmt_psq_len++;
+			spin_unlock_bh(&conn->psq_lock);
+
+			/*
+			 * If this is the first pkt getting queued
+			 * for this STA, update the PVB for this
+			 * STA.
+			 */
+			if (is_psq_empty)
+				ath6kl_wmi_set_pvb_cmd(ar->wmi, vif->fw_vif_idx,
+						       conn->aid, 1);
+			return true;
+		}
+
+		/*
+		 * This tx is because of a PsPoll.
+		 * Determine if MoreData bit has to be set.
+		 */
+		spin_lock_bh(&conn->psq_lock);
+		if (!skb_queue_empty(&conn->psq) || (conn->mgmt_psq_len != 0))
+			*more_data = true;
+		spin_unlock_bh(&conn->psq_lock);
+	}
+
+	return false;
+}
+
 static int ath6kl_mgmt_tx(struct wiphy *wiphy, struct net_device *dev,
 			  struct ieee80211_channel *chan, bool offchan,
 			  enum nl80211_channel_type channel_type,
@@ -2595,6 +2665,7 @@ static int ath6kl_mgmt_tx(struct wiphy *wiphy, struct net_device *dev,
 	struct ath6kl_vif *vif = netdev_priv(dev);
 	u32 id;
 	const struct ieee80211_mgmt *mgmt;
+	bool more_data, queued;
 
 	mgmt = (const struct ieee80211_mgmt *) buf;
 	if (buf + len >= mgmt->u.probe_resp.variable &&
@@ -2620,22 +2691,19 @@ static int ath6kl_mgmt_tx(struct wiphy *wiphy, struct net_device *dev,
 
 	*cookie = id;
 
-	if (test_bit(ATH6KL_FW_CAPABILITY_STA_P2PDEV_DUPLEX,
-		    ar->fw_capabilities)) {
-		/*
-		 * If capable of doing P2P mgmt operations using
-		 * station interface, send additional information like
-		 * supported rates to advertise and xmit rates for
-		 * probe requests
-		 */
-		return ath6kl_wmi_send_mgmt_cmd(ar->wmi, vif->fw_vif_idx, id,
-						chan->center_freq, wait,
-						buf, len, no_cck);
-	} else {
-		return ath6kl_wmi_send_action_cmd(ar->wmi, vif->fw_vif_idx, id,
-						  chan->center_freq, wait,
-						  buf, len);
+	/* AP mode Power saving processing */
+	if (vif->nw_type == AP_NETWORK) {
+		queued = ath6kl_mgmt_powersave_ap(vif,
+					id, chan->center_freq,
+					wait, buf,
+					len, &more_data, no_cck);
+		if (queued)
+			return 0;
 	}
+
+	return ath6kl_wmi_send_mgmt_cmd(ar->wmi, vif->fw_vif_idx, id,
+					chan->center_freq, wait,
+					buf, len, no_cck);
 }
 
 static void ath6kl_mgmt_frame_register(struct wiphy *wiphy,
@@ -2919,6 +2987,8 @@ struct ath6kl *ath6kl_core_alloc(struct device *dev)
 		spin_lock_init(&ar->sta_list[ctr].psq_lock);
 		skb_queue_head_init(&ar->sta_list[ctr].psq);
 		skb_queue_head_init(&ar->sta_list[ctr].apsdq);
+		ar->sta_list[ctr].mgmt_psq_len = 0;
+		INIT_LIST_HEAD(&ar->sta_list[ctr].mgmt_psq);
 		ar->sta_list[ctr].aggr_conn =
 			kzalloc(sizeof(struct aggr_info_conn), GFP_KERNEL);
 		if (!ar->sta_list[ctr].aggr_conn) {
