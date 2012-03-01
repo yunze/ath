@@ -885,19 +885,14 @@ static int ath6kl_cfg80211_scan(struct wiphy *wiphy, struct net_device *ndev,
 						  request->ssids[i].ssid);
 	}
 
-	/*
-	 * FIXME: we should clear the IE in fw if it's not set so just
-	 * remove the check altogether
-	 */
-	if (request->ie) {
-		ret = ath6kl_wmi_set_appie_cmd(ar->wmi, vif->fw_vif_idx,
-					       WMI_FRAME_PROBE_REQ,
-					       request->ie, request->ie_len);
-		if (ret) {
-			ath6kl_err("failed to set Probe Request appie for "
-				   "scan");
-			return ret;
-		}
+	/* this also clears IE in fw if it's not set */
+	ret = ath6kl_wmi_set_appie_cmd(ar->wmi, vif->fw_vif_idx,
+				       WMI_FRAME_PROBE_REQ,
+				       request->ie, request->ie_len);
+	if (ret) {
+		ath6kl_err("failed to set Probe Request appie for "
+			   "scan");
+		return ret;
 	}
 
 	/*
@@ -2287,6 +2282,7 @@ static int ath6kl_ap_beacon(struct wiphy *wiphy, struct net_device *dev,
 	struct ath6kl *ar = ath6kl_priv(dev);
 	struct ath6kl_vif *vif = netdev_priv(dev);
 	struct ieee80211_mgmt *mgmt;
+	bool hidden = false;
 	u8 *ies;
 	int ies_len;
 	struct wmi_connect_cmd p;
@@ -2301,28 +2297,27 @@ static int ath6kl_ap_beacon(struct wiphy *wiphy, struct net_device *dev,
 	if (vif->next_mode != AP_NETWORK)
 		return -EOPNOTSUPP;
 
-	if (info->beacon_ies) {
-		res = ath6kl_wmi_set_appie_cmd(ar->wmi, vif->fw_vif_idx,
-					       WMI_FRAME_BEACON,
-					       info->beacon_ies,
-					       info->beacon_ies_len);
-		if (res)
-			return res;
-	}
-	if (info->proberesp_ies) {
-		res = ath6kl_set_ap_probe_resp_ies(vif, info->proberesp_ies,
-						   info->proberesp_ies_len);
-		if (res)
-			return res;
-	}
-	if (info->assocresp_ies) {
-		res = ath6kl_wmi_set_appie_cmd(ar->wmi, vif->fw_vif_idx,
-					       WMI_FRAME_ASSOC_RESP,
-					       info->assocresp_ies,
-					       info->assocresp_ies_len);
-		if (res)
-			return res;
-	}
+	/* this also clears IE in fw if it's not set */
+	res = ath6kl_wmi_set_appie_cmd(ar->wmi, vif->fw_vif_idx,
+				       WMI_FRAME_BEACON,
+				       info->beacon_ies,
+				       info->beacon_ies_len);
+	if (res)
+		return res;
+
+	/* this also clears IE in fw if it's not set */
+	res = ath6kl_set_ap_probe_resp_ies(vif, info->proberesp_ies,
+					   info->proberesp_ies_len);
+	if (res)
+		return res;
+
+	/* this also clears IE in fw if it's not set */
+	res = ath6kl_wmi_set_appie_cmd(ar->wmi, vif->fw_vif_idx,
+				       WMI_FRAME_ASSOC_RESP,
+				       info->assocresp_ies,
+				       info->assocresp_ies_len);
+	if (res)
+		return res;
 
 	if (!add)
 		return 0;
@@ -2347,7 +2342,11 @@ static int ath6kl_ap_beacon(struct wiphy *wiphy, struct net_device *dev,
 	memcpy(vif->ssid, info->ssid, info->ssid_len);
 	vif->ssid_len = info->ssid_len;
 	if (info->hidden_ssid != NL80211_HIDDEN_SSID_NOT_IN_USE)
-		return -EOPNOTSUPP; /* TODO */
+		hidden = true;
+
+	res = ath6kl_wmi_ap_hidden_ssid(ar->wmi, vif->fw_vif_idx, hidden);
+	if (res)
+		return res;
 
 	ret = ath6kl_set_auth_type(vif, info->auth_type);
 	if (ret)
@@ -3077,11 +3076,27 @@ int ath6kl_cfg80211_init(struct ath6kl *ar)
 
 	wiphy->max_sched_scan_ssids = 10;
 
+	ar->wiphy->flags |= WIPHY_FLAG_SUPPORTS_FW_ROAM |
+			    WIPHY_FLAG_HAVE_AP_SME |
+			    WIPHY_FLAG_HAS_REMAIN_ON_CHANNEL |
+			    WIPHY_FLAG_AP_PROBE_RESP_OFFLOAD;
+
+	if (test_bit(ATH6KL_FW_CAPABILITY_SCHED_SCAN, ar->fw_capabilities))
+		ar->wiphy->flags |= WIPHY_FLAG_SUPPORTS_SCHED_SCAN;
+
+	ar->wiphy->probe_resp_offload =
+		NL80211_PROBE_RESP_OFFLOAD_SUPPORT_WPS |
+		NL80211_PROBE_RESP_OFFLOAD_SUPPORT_WPS2 |
+		NL80211_PROBE_RESP_OFFLOAD_SUPPORT_P2P |
+		NL80211_PROBE_RESP_OFFLOAD_SUPPORT_80211U;
+
 	ret = wiphy_register(wiphy);
 	if (ret < 0) {
 		ath6kl_err("couldn't register wiphy device\n");
 		return ret;
 	}
+
+	ar->wiphy_registered = true;
 
 	return 0;
 }
@@ -3089,6 +3104,8 @@ int ath6kl_cfg80211_init(struct ath6kl *ar)
 void ath6kl_cfg80211_cleanup(struct ath6kl *ar)
 {
 	wiphy_unregister(ar->wiphy);
+
+	ar->wiphy_registered = false;
 }
 
 struct ath6kl *ath6kl_cfg80211_create(void)
