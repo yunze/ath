@@ -581,7 +581,7 @@ static int iwlagn_rx_statistics(struct iwl_priv *priv,
 	if (unlikely(!test_bit(STATUS_SCANNING, &priv->shrd->status)) &&
 	    (pkt->hdr.cmd == STATISTICS_NOTIFICATION)) {
 		iwlagn_rx_calc_noise(priv);
-		queue_work(priv->shrd->workqueue, &priv->run_time_calib_work);
+		queue_work(priv->workqueue, &priv->run_time_calib_work);
 	}
 	if (cfg(priv)->lib->temperature && change)
 		cfg(priv)->lib->temperature(priv);
@@ -628,16 +628,16 @@ static int iwlagn_rx_card_state_notif(struct iwl_priv *priv,
 	if (flags & (SW_CARD_DISABLED | HW_CARD_DISABLED |
 		     CT_CARD_DISABLED)) {
 
-		iwl_write32(bus(priv), CSR_UCODE_DRV_GP1_SET,
+		iwl_write32(trans(priv), CSR_UCODE_DRV_GP1_SET,
 			    CSR_UCODE_DRV_GP1_BIT_CMD_BLOCKED);
 
-		iwl_write_direct32(bus(priv), HBUS_TARG_MBX_C,
+		iwl_write_direct32(trans(priv), HBUS_TARG_MBX_C,
 					HBUS_TARG_MBX_C_REG_BIT_CMD_BLOCKED);
 
 		if (!(flags & RXON_CARD_DISABLED)) {
-			iwl_write32(bus(priv), CSR_UCODE_DRV_GP1_CLR,
+			iwl_write32(trans(priv), CSR_UCODE_DRV_GP1_CLR,
 				    CSR_UCODE_DRV_GP1_BIT_CMD_BLOCKED);
-			iwl_write_direct32(bus(priv), HBUS_TARG_MBX_C,
+			iwl_write_direct32(trans(priv), HBUS_TARG_MBX_C,
 					HBUS_TARG_MBX_C_REG_BIT_CMD_BLOCKED);
 		}
 		if (flags & CT_CARD_DISABLED)
@@ -1141,10 +1141,11 @@ void iwl_setup_rx_handlers(struct iwl_priv *priv)
 
 }
 
-int iwl_rx_dispatch(struct iwl_priv *priv, struct iwl_rx_mem_buffer *rxb,
+int iwl_rx_dispatch(struct iwl_op_mode *op_mode, struct iwl_rx_mem_buffer *rxb,
 		     struct iwl_device_cmd *cmd)
 {
 	struct iwl_rx_packet *pkt = rxb_addr(rxb);
+	struct iwl_priv *priv = IWL_OP_MODE_GET_DVM(op_mode);
 	int err = 0;
 
 	/*

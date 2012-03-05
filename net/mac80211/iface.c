@@ -644,6 +644,8 @@ static void ieee80211_teardown_sdata(struct net_device *dev)
 
 	if (ieee80211_vif_is_mesh(&sdata->vif))
 		mesh_rmc_free(sdata);
+	else if (sdata->vif.type == NL80211_IFTYPE_STATION)
+		ieee80211_mgd_teardown(sdata);
 
 	flushed = sta_info_flush(local, sdata);
 	WARN_ON(flushed);
@@ -1310,7 +1312,9 @@ u32 __ieee80211_recalc_idle(struct ieee80211_local *local)
 
 		/* do not count disabled managed interfaces */
 		if (sdata->vif.type == NL80211_IFTYPE_STATION &&
-		    !sdata->u.mgd.associated) {
+		    !sdata->u.mgd.associated &&
+		    !sdata->u.mgd.auth_data &&
+		    !sdata->u.mgd.assoc_data) {
 			sdata->vif.bss_conf.idle = true;
 			continue;
 		}
@@ -1330,7 +1334,8 @@ u32 __ieee80211_recalc_idle(struct ieee80211_local *local)
 		wk->sdata->vif.bss_conf.idle = false;
 	}
 
-	if (local->scan_sdata) {
+	if (local->scan_sdata &&
+	    !(local->hw.flags & IEEE80211_HW_SCAN_WHILE_IDLE)) {
 		scanning = true;
 		local->scan_sdata->vif.bss_conf.idle = false;
 	}
@@ -1339,6 +1344,9 @@ u32 __ieee80211_recalc_idle(struct ieee80211_local *local)
 		hw_roc = true;
 
 	list_for_each_entry(sdata, &local->interfaces, list) {
+		if (sdata->vif.type == NL80211_IFTYPE_MONITOR ||
+		    sdata->vif.type == NL80211_IFTYPE_AP_VLAN)
+			continue;
 		if (sdata->old_idle == sdata->vif.bss_conf.idle)
 			continue;
 		if (!ieee80211_sdata_running(sdata))

@@ -341,9 +341,9 @@ struct ieee80211_bss_conf {
  *	used to indicate that a frame was already retried due to PS
  * @IEEE80211_TX_INTFL_DONT_ENCRYPT: completely internal to mac80211,
  *	used to indicate frame should not be encrypted
- * @IEEE80211_TX_CTL_POLL_RESPONSE: This frame is a response to a poll
- *	frame (PS-Poll or uAPSD) and should be sent although the station
- *	is in powersave mode.
+ * @IEEE80211_TX_CTL_NO_PS_BUFFER: This frame is a response to a poll
+ *	frame (PS-Poll or uAPSD) or a non-bufferable MMPDU and must
+ *	be sent although the station is in powersave mode.
  * @IEEE80211_TX_CTL_MORE_FRAMES: More frames will be passed to the
  *	transmit function after the current frame, this can be used
  *	by drivers to kick the DMA queue only if unset or when the
@@ -399,7 +399,7 @@ enum mac80211_tx_control_flags {
 	IEEE80211_TX_INTFL_NEED_TXPROCESSING	= BIT(14),
 	IEEE80211_TX_INTFL_RETRIED		= BIT(15),
 	IEEE80211_TX_INTFL_DONT_ENCRYPT		= BIT(16),
-	IEEE80211_TX_CTL_POLL_RESPONSE		= BIT(17),
+	IEEE80211_TX_CTL_NO_PS_BUFFER		= BIT(17),
 	IEEE80211_TX_CTL_MORE_FRAMES		= BIT(18),
 	IEEE80211_TX_INTFL_RETRANSMISSION	= BIT(19),
 	/* hole at 20, use later */
@@ -425,7 +425,7 @@ enum mac80211_tx_control_flags {
 	IEEE80211_TX_CTL_SEND_AFTER_DTIM | IEEE80211_TX_CTL_AMPDU |	      \
 	IEEE80211_TX_STAT_TX_FILTERED |	IEEE80211_TX_STAT_ACK |		      \
 	IEEE80211_TX_STAT_AMPDU | IEEE80211_TX_STAT_AMPDU_NO_BACK |	      \
-	IEEE80211_TX_CTL_RATE_CTRL_PROBE | IEEE80211_TX_CTL_POLL_RESPONSE |   \
+	IEEE80211_TX_CTL_RATE_CTRL_PROBE | IEEE80211_TX_CTL_NO_PS_BUFFER |    \
 	IEEE80211_TX_CTL_MORE_FRAMES | IEEE80211_TX_CTL_LDPC |		      \
 	IEEE80211_TX_CTL_STBC | IEEE80211_TX_STATUS_EOSP)
 
@@ -982,6 +982,25 @@ enum set_key_cmd {
 };
 
 /**
+ * enum ieee80211_sta_state - station state
+ *
+ * @IEEE80211_STA_NOTEXIST: station doesn't exist at all,
+ *	this is a special state for add/remove transitions
+ * @IEEE80211_STA_NONE: station exists without special state
+ * @IEEE80211_STA_AUTH: station is authenticated
+ * @IEEE80211_STA_ASSOC: station is associated
+ * @IEEE80211_STA_AUTHORIZED: station is authorized (802.1X)
+ */
+enum ieee80211_sta_state {
+	/* NOTE: These need to be ordered correctly! */
+	IEEE80211_STA_NOTEXIST,
+	IEEE80211_STA_NONE,
+	IEEE80211_STA_AUTH,
+	IEEE80211_STA_ASSOC,
+	IEEE80211_STA_AUTHORIZED,
+};
+
+/**
  * struct ieee80211_sta - station table entry
  *
  * A station table entry represents a station we are possibly
@@ -1145,6 +1164,10 @@ enum sta_notify_cmd {
  * @IEEE80211_HW_TX_AMPDU_SETUP_IN_HW: The device handles TX A-MPDU session
  *	setup strictly in HW. mac80211 should not attempt to do this in
  *	software.
+ *
+ * @IEEE80211_HW_SCAN_WHILE_IDLE: The device can do hw scan while
+ *	being idle (i.e. mac80211 doesn't have to go idle-off during the
+ *	the scan).
  */
 enum ieee80211_hw_flags {
 	IEEE80211_HW_HAS_RATE_CONTROL			= 1<<0,
@@ -1171,6 +1194,7 @@ enum ieee80211_hw_flags {
 	IEEE80211_HW_SUPPORTS_PER_STA_GTK		= 1<<21,
 	IEEE80211_HW_AP_LINK_PS				= 1<<22,
 	IEEE80211_HW_TX_AMPDU_SETUP_IN_HW		= 1<<23,
+	IEEE80211_HW_SCAN_WHILE_IDLE			= 1<<24,
 };
 
 /**
@@ -1610,13 +1634,16 @@ void ieee80211_free_txskb(struct ieee80211_hw *hw, struct sk_buff *skb);
  * the station sends a PS-Poll or a uAPSD trigger frame, mac80211
  * will inform the driver of this with the @allow_buffered_frames
  * callback; this callback is optional. mac80211 will then transmit
- * the frames as usual and set the %IEEE80211_TX_CTL_POLL_RESPONSE
+ * the frames as usual and set the %IEEE80211_TX_CTL_NO_PS_BUFFER
  * on each frame. The last frame in the service period (or the only
  * response to a PS-Poll) also has %IEEE80211_TX_STATUS_EOSP set to
  * indicate that it ends the service period; as this frame must have
  * TX status report it also sets %IEEE80211_TX_CTL_REQ_TX_STATUS.
  * When TX status is reported for this frame, the service period is
  * marked has having ended and a new one can be started by the peer.
+ *
+ * Additionally, non-bufferable MMPDUs can also be transmitted by
+ * mac80211 with the %IEEE80211_TX_CTL_NO_PS_BUFFER set in them.
  *
  * Another race condition can happen on some devices like iwlwifi
  * when there are frames queued for the station and it wakes up
@@ -1974,6 +2001,13 @@ enum ieee80211_frame_release_type {
  *	in AP mode, this callback will not be called when the flag
  *	%IEEE80211_HW_AP_LINK_PS is set. Must be atomic.
  *
+ * @sta_state: Notifies low level driver about state transition of a
+ *	station (which can be the AP, a client, IBSS/WDS/mesh peer etc.)
+ *	This callback is mutually exclusive with @sta_add/@sta_remove.
+ *	It must not fail for down transitions but may fail for transitions
+ *	up the list of states.
+ *	The callback can sleep.
+ *
  * @conf_tx: Configure TX queue parameters (EDCF (aifs, cw_min, cw_max),
  *	bursting) for a hardware TX queue.
  *	Returns a negative error code on failure.
@@ -2109,7 +2143,7 @@ enum ieee80211_frame_release_type {
  * @allow_buffered_frames: Prepare device to allow the given number of frames
  *	to go out to the given station. The frames will be sent by mac80211
  *	via the usual TX path after this call. The TX information for frames
- *	released will also have the %IEEE80211_TX_CTL_POLL_RESPONSE flag set
+ *	released will also have the %IEEE80211_TX_CTL_NO_PS_BUFFER flag set
  *	and the last one will also have %IEEE80211_TX_STATUS_EOSP set. In case
  *	frames from multiple TIDs are released and the driver might reorder
  *	them between the TIDs, it must set the %IEEE80211_TX_STATUS_EOSP flag
@@ -2193,6 +2227,10 @@ struct ieee80211_ops {
 			  struct ieee80211_sta *sta);
 	void (*sta_notify)(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 			enum sta_notify_cmd, struct ieee80211_sta *sta);
+	int (*sta_state)(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+			 struct ieee80211_sta *sta,
+			 enum ieee80211_sta_state old_state,
+			 enum ieee80211_sta_state new_state);
 	int (*conf_tx)(struct ieee80211_hw *hw,
 		       struct ieee80211_vif *vif, u16 queue,
 		       const struct ieee80211_tx_queue_params *params);
