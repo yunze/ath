@@ -29,11 +29,13 @@
 unsigned int debug_mask;
 static unsigned int testmode;
 static unsigned int suspend_mode;
+static unsigned int wow_mode;
 static unsigned int uart_debug;
 
 module_param(debug_mask, uint, 0644);
 module_param(testmode, uint, 0644);
 module_param(suspend_mode, uint, 0644);
+module_param(wow_mode, uint, 0644);
 module_param(uart_debug, uint, 0644);
 
 static const struct ath6kl_hw hw_list[] = {
@@ -1779,6 +1781,13 @@ int ath6kl_core_init(struct ath6kl *ar)
 		ar->suspend_mode = suspend_mode;
 	else
 		ar->suspend_mode = 0;
+
+	if (suspend_mode == WLAN_POWER_STATE_WOW &&
+	    (wow_mode == WLAN_POWER_STATE_CUT_PWR ||
+	     wow_mode == WLAN_POWER_STATE_DEEP_SLEEP))
+		ar->wow_suspend_mode = wow_mode;
+	else
+		ar->wow_suspend_mode = 0;
 
 	ar->wiphy->flags |= WIPHY_FLAG_SUPPORTS_FW_ROAM |
 			    WIPHY_FLAG_HAVE_AP_SME |
