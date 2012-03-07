@@ -1159,6 +1159,8 @@ struct cfg80211_ibss_params {
  * @key_len: length of WEP key for shared key authentication
  * @key_idx: index of WEP key for shared key authentication
  * @key: WEP key for shared key authentication
+ * @bg_scan_period:  Background scan period in seconds
+ *   or -1 to indicate that default value is to be used.
  */
 struct cfg80211_connect_params {
 	struct ieee80211_channel *channel;
@@ -1172,6 +1174,7 @@ struct cfg80211_connect_params {
 	struct cfg80211_crypto_settings crypto;
 	const u8 *key;
 	u8 key_len, key_idx;
+	int bg_scan_period;
 };
 
 /**

@@ -199,6 +199,14 @@ static const struct nla_policy nl80211_policy[NL80211_ATTR_MAX+1] = {
 	[NL80211_ATTR_DONT_WAIT_FOR_ACK] = { .type = NLA_FLAG },
 	[NL80211_ATTR_PROBE_RESP] = { .type = NLA_BINARY,
 				      .len = IEEE80211_MAX_DATA_LEN },
+	[NL80211_ATTR_DFS_REGION] = { .type = NLA_U8 },
+	[NL80211_ATTR_DISABLE_HT] = { .type = NLA_FLAG },
+	[NL80211_ATTR_HT_CAPABILITY_MASK] = {
+		.len = NL80211_HT_CAPABILITY_LEN
+	},
+	[NL80211_ATTR_NOACK_MAP] = { .type = NLA_U16 },
+	[NL80211_ATTR_INACTIVITY_TIMEOUT] = { .type = NLA_U16 },
+	[NL80211_ATTR_BG_SCAN_PERIOD] = { .type = NLA_U16 },
 };
 
 /* policy for the key attributes */
@@ -4894,6 +4902,13 @@ static int nl80211_connect(struct sk_buff *skb, struct genl_info *info)
 		return -EOPNOTSUPP;
 
 	wiphy = &rdev->wiphy;
+
+	connect.bg_scan_period = -1;
+	if (info->attrs[NL80211_ATTR_BG_SCAN_PERIOD] &&
+		(wiphy->flags & WIPHY_FLAG_SUPPORTS_FW_ROAM)) {
+		connect.bg_scan_period =
+			nla_get_u16(info->attrs[NL80211_ATTR_BG_SCAN_PERIOD]);
+	}
 
 	if (info->attrs[NL80211_ATTR_MAC])
 		connect.bssid = nla_data(info->attrs[NL80211_ATTR_MAC]);
