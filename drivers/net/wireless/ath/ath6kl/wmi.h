@@ -111,6 +111,8 @@ struct wmi {
 	u8 fat_pipe_exist;
 	struct ath6kl *parent_dev;
 	u8 pwr_mode;
+
+	/* protects fat_pipe_exist and stream_exist_for_ac */
 	spinlock_t lock;
 	enum htc_endpoint_id ep_id;
 	struct sq_threshold_params
@@ -1021,7 +1023,7 @@ struct wmi_power_mode_cmd {
  */
 enum power_save_fail_event_policy {
 	SEND_POWER_SAVE_FAIL_EVENT_ALWAYS = 1,
-	IGNORE_POWER_SAVE_FAIL_EVENT_DURING_SCAN = 2,
+	IGNORE_PS_FAIL_DURING_SCAN = 2,
 };
 
 struct wmi_power_params_cmd {
@@ -1219,7 +1221,7 @@ struct wmi_snr_threshold_params_cmd {
 
 enum wmi_preamble_policy {
 	WMI_IGNORE_BARKER_IN_ERP = 0,
-	WMI_DONOT_IGNORE_BARKER_IN_ERP
+	WMI_FOLLOW_BARKER_IN_ERP,
 };
 
 struct wmi_set_lpreamble_cmd {

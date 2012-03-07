@@ -233,6 +233,12 @@ struct rxtid {
 	u32 hold_q_sz;
 	struct skb_hold_q *hold_q;
 	struct sk_buff_head q;
+
+	/*
+	 * FIXME: No clue what this should protect. Apparently it should
+	 * protect some of the fields above but they are also accessed
+	 * without taking the lock.
+	 */
 	spinlock_t lock;
 };
 
@@ -311,7 +317,10 @@ struct ath6kl_sta {
 	u8 auth;
 	u8 wpa_ie[ATH6KL_MAX_IE];
 	struct sk_buff_head psq;
+
+	/* protects psq, mgmt_psq, apsdq, and mgmt_psq_len fields */
 	spinlock_t psq_lock;
+
 	struct list_head mgmt_psq;
 	size_t mgmt_psq_len;
 	u8 apsd_info;
@@ -572,7 +581,13 @@ struct ath6kl {
 	unsigned int vif_max;
 	u8 max_norm_iface;
 	u8 avail_idx_map;
+
+	/*
+	 * Protects at least amsdu_rx_buffer_queue, ath6kl_alloc_cookie()
+	 * calls, tx_pending and total_tx_data_pend.
+	 */
 	spinlock_t lock;
+
 	struct semaphore sem;
 	u8 lrssi_roam_threshold;
 	struct ath6kl_version version;
@@ -599,7 +614,13 @@ struct ath6kl {
 	u8 sta_list_index;
 	struct ath6kl_req_key ap_mode_bkey;
 	struct sk_buff_head mcastpsq;
+
+	/*
+	 * FIXME: protects access to mcastpsq but is actually useless as
+	 * all skbe_queue_*() functions provide serialisation themselves
+	 */
 	spinlock_t mcastpsq_lock;
+
 	u8 intra_bss;
 	struct wmi_ap_mode_stat ap_stats;
 	u8 ap_country_code[3];
@@ -754,10 +775,10 @@ struct htc_packet *ath6kl_alloc_amsdu_rxbuf(struct htc_target *target,
 void aggr_module_destroy(struct aggr_info *aggr_info);
 void aggr_reset_state(struct aggr_info_conn *aggr_conn);
 
-struct ath6kl_sta *ath6kl_find_sta(struct ath6kl_vif *vif, u8 * node_addr);
+struct ath6kl_sta *ath6kl_find_sta(struct ath6kl_vif *vif, u8 *node_addr);
 struct ath6kl_sta *ath6kl_find_sta_by_aid(struct ath6kl *ar, u8 aid);
 
-void ath6kl_ready_event(void *devt, u8 * datap, u32 sw_ver, u32 abi_ver);
+void ath6kl_ready_event(void *devt, u8 *datap, u32 sw_ver, u32 abi_ver);
 int ath6kl_control_tx(void *devt, struct sk_buff *skb,
 		      enum htc_endpoint_id eid);
 void ath6kl_connect_event(struct ath6kl_vif *vif, u16 channel,
