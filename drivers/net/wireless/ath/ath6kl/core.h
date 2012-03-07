@@ -60,8 +60,6 @@
 #define MAX_DEFAULT_SEND_QUEUE_DEPTH      (MAX_DEF_COOKIE_NUM / WMM_NUM_AC)
 
 #define DISCON_TIMER_INTVAL               10000  /* in msec */
-#define A_DEFAULT_LISTEN_INTERVAL         1      /* beacon intervals */
-#define A_MAX_WOW_LISTEN_INTERVAL         1000
 
 /* Channel dwell time in fg scan */
 #define ATH6KL_FG_SCAN_INTERVAL		50 /* in ms */
@@ -186,6 +184,11 @@ struct ath6kl_fw_ie {
 #define WMI_TIMEOUT (2 * HZ)
 
 #define MBOX_YIELD_LIMIT 99
+
+#define ATH6KL_DEFAULT_LISTEN_INTVAL	100 /* in TUs */
+#define ATH6KL_DEFAULT_BMISS_TIME	1500
+#define ATH6KL_MAX_WOW_LISTEN_INTL	300 /* in TUs */
+#define ATH6KL_MAX_BMISS_TIME		5000
 
 /* configuration lags */
 /*
@@ -510,6 +513,8 @@ struct ath6kl_vif {
 	bool probe_req_report;
 	u16 next_chan;
 	u16 assoc_bss_beacon_int;
+	u16 listen_intvl_t;
+	u16 bmiss_time_t;
 	u8 assoc_bss_dtim_period;
 	struct net_device_stats net_stats;
 	struct target_stats target_stats;
@@ -537,6 +542,8 @@ enum ath6kl_dev_state {
 enum ath6kl_state {
 	ATH6KL_STATE_OFF,
 	ATH6KL_STATE_ON,
+	ATH6KL_STATE_SUSPENDING,
+	ATH6KL_STATE_RESUMING,
 	ATH6KL_STATE_DEEPSLEEP,
 	ATH6KL_STATE_CUTPOWER,
 	ATH6KL_STATE_WOW,
@@ -567,7 +574,6 @@ struct ath6kl {
 	u8 avail_idx_map;
 	spinlock_t lock;
 	struct semaphore sem;
-	u16 listen_intvl_b;
 	u8 lrssi_roam_threshold;
 	struct ath6kl_version version;
 	u32 target_type;
@@ -636,6 +642,7 @@ struct ath6kl {
 
 	u16 conf_flags;
 	u16 suspend_mode;
+	u16 wow_suspend_mode;
 	wait_queue_head_t event_wq;
 	struct ath6kl_mbox_info mbox_info;
 

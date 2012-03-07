@@ -423,6 +423,7 @@ static int ath6kl_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 	struct ath6kl_vif *vif = netdev_priv(dev);
 	int status;
 	u8 nw_subtype = (ar->p2p) ? SUBTYPE_P2PDEV : SUBTYPE_NONE;
+	u16 interval;
 
 	ath6kl_cfg80211_sscan_disable(vif);
 
@@ -577,6 +578,20 @@ static int ath6kl_cfg80211_connect(struct wiphy *wiphy, struct net_device *dev,
 		   vif->grp_crypto_len, vif->ch_hint);
 
 	vif->reconnect_flag = 0;
+
+	if (vif->nw_type == INFRA_NETWORK) {
+		interval = max(vif->listen_intvl_t,
+			       (u16) ATH6KL_MAX_WOW_LISTEN_INTL);
+		status = ath6kl_wmi_listeninterval_cmd(ar->wmi, vif->fw_vif_idx,
+						       interval,
+						       0);
+		if (status) {
+			ath6kl_err("couldn't set listen intervel\n");
+			up(&ar->sem);
+			return status;
+		}
+	}
+
 	status = ath6kl_wmi_connect_cmd(ar->wmi, vif->fw_vif_idx, vif->nw_type,
 					vif->dot11_auth_mode, vif->auth_mode,
 					vif->prwise_crypto,
@@ -1911,7 +1926,7 @@ static int ath6kl_wow_suspend(struct ath6kl *ar, struct cfg80211_wowlan *wow)
 	struct ath6kl_vif *vif;
 	int ret, left;
 	u32 filter = 0;
-	u16 i;
+	u16 i, bmiss_time;
 	u8 index = 0;
 	__be32 ips[MAX_IP_ADDRS];
 
@@ -1947,6 +1962,34 @@ static int ath6kl_wow_suspend(struct ath6kl *ar, struct cfg80211_wowlan *wow)
 
 	if (ret)
 		return ret;
+
+	netif_stop_queue(vif->ndev);
+
+	if (vif->nw_type != AP_NETWORK) {
+		ret = ath6kl_wmi_listeninterval_cmd(ar->wmi, vif->fw_vif_idx,
+						    ATH6KL_MAX_WOW_LISTEN_INTL,
+						    0);
+		if (ret)
+			return ret;
+
+		/* Set listen interval x 15 times as bmiss time */
+		bmiss_time = ATH6KL_MAX_WOW_LISTEN_INTL * 15;
+		if (bmiss_time > ATH6KL_MAX_BMISS_TIME)
+			bmiss_time = ATH6KL_MAX_BMISS_TIME;
+
+		ret = ath6kl_wmi_bmisstime_cmd(ar->wmi, vif->fw_vif_idx,
+					       bmiss_time, 0);
+		if (ret)
+			return ret;
+
+		ret = ath6kl_wmi_scanparams_cmd(ar->wmi, vif->fw_vif_idx,
+						0xFFFF, 0, 0xFFFF, 0, 0, 0,
+						0, 0, 0, 0);
+		if (ret)
+			return ret;
+	}
+
+	ar->state = ATH6KL_STATE_SUSPENDING;
 
 	/* Setup own IP addr for ARP agent. */
 	in_dev = __in_dev_get_rtnl(vif->ndev);
@@ -2026,15 +2069,46 @@ static int ath6kl_wow_resume(struct ath6kl *ar)
 	if (!vif)
 		return -EIO;
 
+	ar->state = ATH6KL_STATE_RESUMING;
+
 	ret = ath6kl_wmi_set_host_sleep_mode_cmd(ar->wmi, vif->fw_vif_idx,
 						 ATH6KL_HOST_MODE_AWAKE);
-	return ret;
+	if (ret) {
+		ath6kl_warn("Failed to configure host sleep mode for "
+			    "wow resume: %d\n", ret);
+		ar->state = ATH6KL_STATE_WOW;
+		return ret;
+	}
+
+	if (vif->nw_type != AP_NETWORK) {
+		ret = ath6kl_wmi_scanparams_cmd(ar->wmi, vif->fw_vif_idx,
+						0, 0, 0, 0, 0, 0, 3, 0, 0, 0);
+		if (ret)
+			return ret;
+
+		ret = ath6kl_wmi_listeninterval_cmd(ar->wmi, vif->fw_vif_idx,
+						    vif->listen_intvl_t, 0);
+		if (ret)
+			return ret;
+
+		ret = ath6kl_wmi_bmisstime_cmd(ar->wmi, vif->fw_vif_idx,
+					       vif->bmiss_time_t, 0);
+		if (ret)
+			return ret;
+	}
+
+	ar->state = ATH6KL_STATE_ON;
+
+	netif_wake_queue(vif->ndev);
+
+	return 0;
 }
 
 int ath6kl_cfg80211_suspend(struct ath6kl *ar,
 			    enum ath6kl_cfg_suspend_mode mode,
 			    struct cfg80211_wowlan *wow)
 {
+	enum ath6kl_state prev_state;
 	int ret;
 
 	switch (mode) {
@@ -2045,11 +2119,14 @@ int ath6kl_cfg80211_suspend(struct ath6kl *ar,
 		/* Flush all non control pkts in TX path */
 		ath6kl_tx_data_cleanup(ar);
 
+		prev_state = ar->state;
+
 		ret = ath6kl_wow_suspend(ar, wow);
 		if (ret) {
-			ath6kl_err("wow suspend failed: %d\n", ret);
+			ar->state = prev_state;
 			return ret;
 		}
+
 		ar->state = ATH6KL_STATE_WOW;
 		break;
 
@@ -2121,7 +2198,6 @@ int ath6kl_cfg80211_resume(struct ath6kl *ar)
 			return ret;
 		}
 
-		ar->state = ATH6KL_STATE_ON;
 		break;
 
 	case ATH6KL_STATE_DEEPSLEEP:
@@ -2195,6 +2271,9 @@ static int __ath6kl_cfg80211_resume(struct wiphy *wiphy)
  */
 void ath6kl_check_wow_status(struct ath6kl *ar)
 {
+	if (ar->state == ATH6KL_STATE_SUSPENDING)
+		return;
+
 	if (ar->state == ATH6KL_STATE_WOW)
 		ath6kl_cfg80211_resume(ar);
 }
@@ -3010,6 +3089,8 @@ struct net_device *ath6kl_interface_add(struct ath6kl *ar, char *name,
 	vif->wdev.iftype = type;
 	vif->fw_vif_idx = fw_vif_idx;
 	vif->nw_type = vif->next_mode = nw_type;
+	vif->listen_intvl_t = ATH6KL_DEFAULT_LISTEN_INTVAL;
+	vif->bmiss_time_t = ATH6KL_DEFAULT_BMISS_TIME;
 
 	memcpy(ndev->dev_addr, ar->mac_addr, ETH_ALEN);
 	if (fw_vif_idx != 0)
