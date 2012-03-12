@@ -1539,15 +1539,7 @@ static int ath6kl_htc_pipe_start(struct htc_target *target)
 	memset(setup_comp, 0, sizeof(struct htc_setup_comp_ext_msg));
 	setup_comp->msg_id = cpu_to_le16(HTC_MSG_SETUP_COMPLETE_EX_ID);
 
-	if (0) {
-		ath6kl_dbg(ATH6KL_DBG_HTC,
-			   "HTC will not use TX credit flow control\n");
-		setup_comp->flags |=
-			cpu_to_le32(HTC_SETUP_COMP_FLG_DISABLE_TX_CREDIT_FLOW);
-	} else {
-		ath6kl_dbg(ATH6KL_DBG_HTC,
-			   "HTC using TX credit flow control\n");
-	}
+	ath6kl_dbg(ATH6KL_DBG_HTC, "HTC using TX credit flow control\n");
 
 	set_htc_pkt_info(packet, NULL, (u8 *) setup_comp,
 			 sizeof(struct htc_setup_comp_ext_msg),
