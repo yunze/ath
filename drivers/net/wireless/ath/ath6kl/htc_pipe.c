@@ -160,7 +160,8 @@ static void get_htc_packet_credit_based(struct htc_target *target,
 				send_flags |= HTC_FLAGS_NEED_CREDIT_UPDATE;
 				ep->ep_st.cred_low_indicate += 1;
 				ath6kl_dbg(ATH6KL_DBG_HTC,
-					"%s: host needs credits\n", __func__);
+					   "%s: host needs credits\n",
+					   __func__);
 			}
 		}
 
@@ -361,15 +362,14 @@ static enum htc_send_queue_result htc_try_send(struct htc_target *target,
 				   ep->eid, overflow, txqueue_depth,
 				   ep->max_txq_depth);
 		}
-		if ((overflow <= 0)
-		    || (ep->ep_cb.tx_full == NULL)) {
+		if ((overflow <= 0) ||
+		    (ep->ep_cb.tx_full == NULL)) {
 			/*
 			 * all packets will fit or caller did not provide send
 			 * full indication handler -- just move all of them
 			 * to the local send_queue object
 			 */
-			list_splice_tail_init(callers_send_queue,
-							&send_queue);
+			list_splice_tail_init(callers_send_queue, &send_queue);
 		} else {
 			int i;
 			int good_pkts =
@@ -417,7 +417,7 @@ static enum htc_send_queue_result htc_try_send(struct htc_target *target,
 					list_del(&packet->list);
 					/* put it in the send queue */
 					list_add_tail(&packet->list,
-						&send_queue);
+						      &send_queue);
 				}
 
 			}
@@ -1056,8 +1056,8 @@ static int htc_rx_completion(struct htc_target *context,
 	if (hdr_info & HTC_FLG_RX_TRAILER) {
 		/* extract the trailer length */
 		hdr_info = htc_hdr->ctrl[0];
-		if ((hdr_info < sizeof(struct htc_record_hdr))
-		    || (hdr_info > payload_len)) {
+		if ((hdr_info < sizeof(struct htc_record_hdr)) ||
+		    (hdr_info > payload_len)) {
 			ath6kl_dbg(ATH6KL_DBG_HTC,
 				   "invalid header: payloadlen"
 				   "should be %d, CB[0]: %d\n",
@@ -1220,8 +1220,7 @@ static void htc_rxctrl_complete(struct htc_target *context,
 				struct htc_packet *packet)
 {
 	/* TODO, can't really receive HTC control messages yet.... */
-	ath6kl_dbg(ATH6KL_DBG_HTC, "%s: invalid call function\n",
-			__func__);
+	ath6kl_dbg(ATH6KL_DBG_HTC, "%s: invalid call function\n", __func__);
 }
 
 /* htc pipe initialization */
@@ -1368,8 +1367,8 @@ static int ath6kl_htc_pipe_conn_service(struct htc_target *handle,
 		resp_msg = (struct htc_conn_service_resp *)
 		    target->ctrl_response_buf;
 
-		if ((resp_msg->msg_id != cpu_to_le16(HTC_MSG_CONN_SVC_RESP_ID))
-		    || (target->ctrl_response_len <
+		if ((resp_msg->msg_id != cpu_to_le16(HTC_MSG_CONN_SVC_RESP_ID)) ||
+		    (target->ctrl_response_len <
 			sizeof(struct htc_conn_service_resp))) {
 			/* this message is not valid */
 			WARN_ON(1);
@@ -1668,8 +1667,7 @@ static int ath6kl_htc_pipe_wait_target(struct htc_target *handle)
 		le16_to_cpu(ready_msg->ver2_0_info.cred_cnt);
 	target->tgt_cred_sz =
 		le16_to_cpu(ready_msg->ver2_0_info.cred_sz);
-	if ((target->tgt_creds == 0)
-	    || (target->tgt_cred_sz == 0)) {
+	if ((target->tgt_creds == 0) || (target->tgt_cred_sz == 0)) {
 		return -ECOMM;
 	}
 

@@ -62,7 +62,10 @@ struct ath6kl_usb_pipe {
 
 /* usb device object */
 struct ath6kl_usb {
+	/* protects pipe->urb_list_head and  pipe->urb_cnt */
 	spinlock_t cs_lock;
+
+	/* FIXME: unused, remove */
 	spinlock_t tx_lock;
 	struct ath6kl_hif_pipe_callbacks htc_callbacks;
 	struct usb_device *udev;
@@ -485,7 +488,7 @@ static void ath6kl_usb_start_recv_pipes(struct ath6kl_usb *device)
 	device->pipes[ATH6KL_USB_PIPE_RX_DATA].urb_cnt_thresh =
 	    device->pipes[ATH6KL_USB_PIPE_RX_DATA].urb_alloc / 2;
 	ath6kl_usb_post_recv_transfers(&device->pipes[ATH6KL_USB_PIPE_RX_DATA],
-				    ATH6KL_USB_RX_BUFFER_SIZE);
+				       ATH6KL_USB_RX_BUFFER_SIZE);
 }
 
 /* hif usb rx/tx completion functions */
@@ -541,7 +544,7 @@ cleanup_recv_urb:
 		if (pipe->urb_cnt >= pipe->urb_cnt_thresh) {
 			/* our free urbs are piling up, post more transfers */
 			ath6kl_usb_post_recv_transfers(pipe,
-						    ATH6KL_USB_RX_BUFFER_SIZE);
+						       ATH6KL_USB_RX_BUFFER_SIZE);
 		}
 	}
 	return;
@@ -555,14 +558,14 @@ static void ath6kl_usb_usb_transmit_complete(struct urb *urb)
 	struct ath6kl_usb_pipe *pipe = urb_context->pipe;
 
 	ath6kl_dbg(ATH6KL_DBG_USB_BULK,
-			"%s: pipe: %d, stat:%d, len:%d\n",
-			__func__, pipe->logical_pipe_num, urb->status,
-			urb->actual_length);
+		   "%s: pipe: %d, stat:%d, len:%d\n",
+		   __func__, pipe->logical_pipe_num, urb->status,
+		   urb->actual_length);
 
 	if (urb->status != 0) {
 		ath6kl_dbg(ATH6KL_DBG_USB_BULK,
-			"%s:  pipe: %d, failed:%d\n",
-			__func__, pipe->logical_pipe_num, urb->status);
+			   "%s:  pipe: %d, failed:%d\n",
+			   __func__, pipe->logical_pipe_num, urb->status);
 	}
 
 	buf = urb_context->buf;
@@ -709,8 +712,8 @@ static int ath6kl_usb_send(struct ath6kl *ar, u8 PipeID,
 	int usb_status;
 
 	ath6kl_dbg(ATH6KL_DBG_USB_BULK,
-			"+%s pipe : %d, buf:0x%p\n",
-			__func__, PipeID, buf);
+		   "+%s pipe : %d, buf:0x%p\n",
+		   __func__, PipeID, buf);
 
 	urb_context = ath6kl_usb_alloc_urb_from_pipe(pipe);
 
@@ -733,7 +736,7 @@ static int ath6kl_usb_send(struct ath6kl *ar, u8 PipeID,
 	if (urb == NULL) {
 		status = -ENOMEM;
 		ath6kl_usb_free_urb_to_pipe(urb_context->pipe,
-			urb_context);
+					    urb_context);
 		goto fail_hif_send;
 	}
 
@@ -763,7 +766,7 @@ static int ath6kl_usb_send(struct ath6kl *ar, u8 PipeID,
 			   usb_status);
 		usb_unanchor_urb(urb);
 		ath6kl_usb_free_urb_to_pipe(urb_context->pipe,
-					 urb_context);
+					    urb_context);
 		status = -EINVAL;
 	}
 	usb_free_urb(urb);
@@ -866,7 +869,7 @@ static void hif_detach_htc(struct ath6kl *ar)
 	ath6kl_usb_flush_all(device);
 
 	memset(&device->htc_callbacks, 0,
-		sizeof(struct ath6kl_hif_pipe_callbacks));
+	       sizeof(struct ath6kl_hif_pipe_callbacks));
 }
 
 static int ath6kl_usb_submit_ctrl_out(struct ath6kl_usb *ar_usb,
@@ -1173,9 +1176,9 @@ static int ath6kl_usb_resume(struct usb_interface *interface)
 	device = (struct ath6kl_usb *)usb_get_intfdata(interface);
 
 	ath6kl_usb_post_recv_transfers(&device->pipes[ATH6KL_USB_PIPE_RX_DATA],
-				    ATH6KL_USB_RX_BUFFER_SIZE);
+				       ATH6KL_USB_RX_BUFFER_SIZE);
 	ath6kl_usb_post_recv_transfers(&device->pipes[ATH6KL_USB_PIPE_RX_DATA2],
-				    ATH6KL_USB_RX_BUFFER_SIZE);
+				       ATH6KL_USB_RX_BUFFER_SIZE);
 
 	return 0;
 }

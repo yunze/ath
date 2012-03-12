@@ -226,7 +226,7 @@ struct ath6kl_irq_enable_reg {
  * @brief List of callbacks - filled in by HTC.
  */
 struct ath6kl_hif_pipe_callbacks {
-	int (*tx_completion) (struct htc_target *context, struct sk_buff * skb);
+	int (*tx_completion) (struct htc_target *context, struct sk_buff *skb);
 	int (*rx_completion) (struct htc_target *context,
 				struct sk_buff *skb, u8 pipe);
 	void (*tx_resource_available) (struct htc_target *context, u8 pipe);
