@@ -185,8 +185,8 @@ static int ath6kl_usb_alloc_pipe_resources(struct ath6kl_usb_pipe *pipe,
 	init_usb_anchor(&pipe->urb_submitted);
 
 	for (i = 0; i < urb_cnt; i++) {
-		urb_context = (struct ath6kl_urb_context *)
-		    kzalloc(sizeof(struct ath6kl_urb_context), GFP_KERNEL);
+		urb_context = kzalloc(sizeof(struct ath6kl_urb_context),
+				      GFP_KERNEL);
 		if (urb_context == NULL)
 			/* FIXME: set status to -ENOMEM */
 			break;
@@ -494,8 +494,7 @@ static void ath6kl_usb_start_recv_pipes(struct ath6kl_usb *device)
 /* hif usb rx/tx completion functions */
 static void ath6kl_usb_recv_complete(struct urb *urb)
 {
-	struct ath6kl_urb_context *urb_context =
-	    (struct ath6kl_urb_context *)urb->context;
+	struct ath6kl_urb_context *urb_context = urb->context;
 	int status = 0;
 	struct sk_buff *skb = NULL;
 	struct ath6kl_usb_pipe *pipe = urb_context->pipe;
@@ -551,8 +550,7 @@ cleanup_recv_urb:
 
 static void ath6kl_usb_usb_transmit_complete(struct urb *urb)
 {
-	struct ath6kl_urb_context *urb_context =
-	    (struct ath6kl_urb_context *)urb->context;
+	struct ath6kl_urb_context *urb_context = urb->context;
 	struct sk_buff *skb;
 	struct ath6kl_usb_pipe *pipe = urb_context->pipe;
 
@@ -917,7 +915,7 @@ static int ath6kl_usb_submit_ctrl_in(struct ath6kl_usb *ar_usb,
 			   __func__, ret);
 	}
 
-	memcpy((u8 *) data, buf, size);
+	memcpy(data, buf, size);
 
 	kfree(buf);
 
@@ -1150,7 +1148,7 @@ static int ath6kl_usb_suspend(struct usb_interface *interface,
 			      pm_message_t message)
 {
 	struct ath6kl_usb *device;
-	device = (struct ath6kl_usb *)usb_get_intfdata(interface);
+	device = usb_get_intfdata(interface);
 
 	ath6kl_usb_flush_all(device);
 	return 0;
@@ -1159,7 +1157,7 @@ static int ath6kl_usb_suspend(struct usb_interface *interface,
 static int ath6kl_usb_resume(struct usb_interface *interface)
 {
 	struct ath6kl_usb *device;
-	device = (struct ath6kl_usb *)usb_get_intfdata(interface);
+	device = usb_get_intfdata(interface);
 
 	ath6kl_usb_post_recv_transfers(&device->pipes[ATH6KL_USB_PIPE_RX_DATA],
 				       ATH6KL_USB_RX_BUFFER_SIZE);
