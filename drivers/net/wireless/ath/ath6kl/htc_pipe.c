@@ -1367,9 +1367,8 @@ static int ath6kl_htc_pipe_conn_service(struct htc_target *handle,
 		resp_msg = (struct htc_conn_service_resp *)
 		    target->ctrl_response_buf;
 
-		if ((resp_msg->msg_id != cpu_to_le16(HTC_MSG_CONN_SVC_RESP_ID)) ||
-		    (target->ctrl_response_len <
-			sizeof(struct htc_conn_service_resp))) {
+		if (resp_msg->msg_id != cpu_to_le16(HTC_MSG_CONN_SVC_RESP_ID) ||
+		    (target->ctrl_response_len < sizeof(*resp_msg))) {
 			/* this message is not valid */
 			WARN_ON(1);
 			status = -EINVAL;
@@ -1667,9 +1666,9 @@ static int ath6kl_htc_pipe_wait_target(struct htc_target *handle)
 		le16_to_cpu(ready_msg->ver2_0_info.cred_cnt);
 	target->tgt_cred_sz =
 		le16_to_cpu(ready_msg->ver2_0_info.cred_sz);
-	if ((target->tgt_creds == 0) || (target->tgt_cred_sz == 0)) {
+
+	if ((target->tgt_creds == 0) || (target->tgt_cred_sz == 0))
 		return -ECOMM;
-	}
 
 	htc_setup_target_buffer_assignments(target);
 

@@ -540,13 +540,12 @@ static void ath6kl_usb_recv_complete(struct urb *urb)
 cleanup_recv_urb:
 	ath6kl_usb_cleanup_recv_urb(urb_context);
 
-	if (status == 0) {
-		if (pipe->urb_cnt >= pipe->urb_cnt_thresh) {
-			/* our free urbs are piling up, post more transfers */
-			ath6kl_usb_post_recv_transfers(pipe,
-						       ATH6KL_USB_RX_BUFFER_SIZE);
-		}
+	if (status == 0 &&
+	    pipe->urb_cnt >= pipe->urb_cnt_thresh) {
+		/* our free urbs are piling up, post more transfers */
+		ath6kl_usb_post_recv_transfers(pipe, ATH6KL_USB_RX_BUFFER_SIZE);
 	}
+
 	return;
 }
 
