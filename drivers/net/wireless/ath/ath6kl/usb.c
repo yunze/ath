@@ -78,7 +78,7 @@ struct ath6kl_usb {
 struct ath6kl_urb_context {
 	struct list_head link;
 	struct ath6kl_usb_pipe *pipe;
-	struct sk_buff *buf;
+	struct sk_buff *skb;
 	struct ath6kl *ar;
 };
 
@@ -160,9 +160,9 @@ static void ath6kl_usb_free_urb_to_pipe(struct ath6kl_usb_pipe *pipe,
 
 static void ath6kl_usb_cleanup_recv_urb(struct ath6kl_urb_context *urb_context)
 {
-	if (urb_context->buf != NULL) {
-		dev_kfree_skb(urb_context->buf);
-		urb_context->buf = NULL;
+	if (urb_context->skb != NULL) {
+		dev_kfree_skb(urb_context->skb);
+		urb_context->skb = NULL;
 	}
 
 	ath6kl_usb_free_urb_to_pipe(urb_context->pipe, urb_context);
@@ -416,8 +416,8 @@ static void ath6kl_usb_post_recv_transfers(struct ath6kl_usb_pipe *recv_pipe,
 		if (urb_context == NULL)
 			break;
 
-		urb_context->buf = dev_alloc_skb(buffer_length);
-		if (urb_context->buf == NULL)
+		urb_context->skb = dev_alloc_skb(buffer_length);
+		if (urb_context->skb == NULL)
 			goto err_cleanup_urb;
 
 		urb = usb_alloc_urb(0, GFP_ATOMIC);
@@ -427,7 +427,7 @@ static void ath6kl_usb_post_recv_transfers(struct ath6kl_usb_pipe *recv_pipe,
 		usb_fill_bulk_urb(urb,
 				  recv_pipe->ar_usb->udev,
 				  recv_pipe->usb_pipe_handle,
-				  urb_context->buf->data,
+				  urb_context->skb->data,
 				  buffer_length,
 				  ath6kl_usb_recv_complete, urb_context);
 
@@ -436,7 +436,7 @@ static void ath6kl_usb_post_recv_transfers(struct ath6kl_usb_pipe *recv_pipe,
 			   "(ep:0x%2.2X), %d bytes buf:0x%p\n",
 			   recv_pipe->logical_pipe_num,
 			   recv_pipe->usb_pipe_handle, recv_pipe->ep_address,
-			   buffer_length, urb_context->buf);
+			   buffer_length, urb_context->skb);
 
 		usb_anchor_urb(urb, &recv_pipe->urb_submitted);
 		usb_status = usb_submit_urb(urb, GFP_ATOMIC);
@@ -495,7 +495,7 @@ static void ath6kl_usb_recv_complete(struct urb *urb)
 	struct ath6kl_urb_context *urb_context =
 	    (struct ath6kl_urb_context *)urb->context;
 	int status = 0;
-	struct sk_buff *buf = NULL;
+	struct sk_buff *skb = NULL;
 	struct ath6kl_usb_pipe *pipe = urb_context->pipe;
 
 	ath6kl_dbg(ATH6KL_DBG_USB_BULK,
@@ -527,12 +527,12 @@ static void ath6kl_usb_recv_complete(struct urb *urb)
 	if (urb->actual_length == 0)
 		goto cleanup_recv_urb;
 
-	buf = urb_context->buf;
+	skb = urb_context->skb;
 	/* we are going to pass it up */
-	urb_context->buf = NULL;
-	skb_put(buf, urb->actual_length);
+	urb_context->skb = NULL;
+	skb_put(skb, urb->actual_length);
 	/* note: queue implements a lock */
-	skb_queue_tail(&pipe->io_comp_queue, buf);
+	skb_queue_tail(&pipe->io_comp_queue, skb);
 	schedule_work(&pipe->io_complete_work);
 
 cleanup_recv_urb:
@@ -551,7 +551,7 @@ static void ath6kl_usb_usb_transmit_complete(struct urb *urb)
 {
 	struct ath6kl_urb_context *urb_context =
 	    (struct ath6kl_urb_context *)urb->context;
-	struct sk_buff *buf;
+	struct sk_buff *skb;
 	struct ath6kl_usb_pipe *pipe = urb_context->pipe;
 
 	ath6kl_dbg(ATH6KL_DBG_USB_BULK,
@@ -565,12 +565,12 @@ static void ath6kl_usb_usb_transmit_complete(struct urb *urb)
 			   __func__, pipe->logical_pipe_num, urb->status);
 	}
 
-	buf = urb_context->buf;
-	urb_context->buf = NULL;
+	skb = urb_context->skb;
+	urb_context->skb = NULL;
 	ath6kl_usb_free_urb_to_pipe(urb_context->pipe, urb_context);
 
 	/* note: queue implements a lock */
-	skb_queue_tail(&pipe->io_comp_queue, buf);
+	skb_queue_tail(&pipe->io_comp_queue, skb);
 	schedule_work(&pipe->io_complete_work);
 }
 
@@ -578,21 +578,21 @@ static void ath6kl_usb_io_comp_work(struct work_struct *work)
 {
 	struct ath6kl_usb_pipe *pipe =
 	    container_of(work, struct ath6kl_usb_pipe, io_complete_work);
-	struct sk_buff *buf;
+	struct sk_buff *skb;
 	struct ath6kl_usb *device;
 
 	device = pipe->ar_usb;
-	while ((buf = skb_dequeue(&pipe->io_comp_queue))) {
+	while ((skb = skb_dequeue(&pipe->io_comp_queue))) {
 		if (pipe->flags & ATH6KL_USB_PIPE_FLAG_TX) {
 			ath6kl_dbg(ATH6KL_DBG_USB_BULK,
-				   "ath6kl usb xmit callback buf:0x%p\n", buf);
+				   "ath6kl usb xmit callback buf:0x%p\n", skb);
 			device->htc_callbacks.
-				tx_completion(device->ar->htc_target, buf);
+				tx_completion(device->ar->htc_target, skb);
 		} else {
 			ath6kl_dbg(ATH6KL_DBG_USB_BULK,
-				   "ath6kl usb recv callback buf:0x%p\n", buf);
+				   "ath6kl usb recv callback buf:0x%p\n", skb);
 			device->htc_callbacks.
-				rx_completion(device->ar->htc_target, buf,
+				rx_completion(device->ar->htc_target, skb,
 					      pipe->logical_pipe_num);
 		}
 	}
@@ -696,7 +696,7 @@ static void hif_start(struct ath6kl *ar)
 }
 
 static int ath6kl_usb_send(struct ath6kl *ar, u8 PipeID,
-	struct sk_buff *hdr_buf, struct sk_buff *buf)
+	struct sk_buff *hdr_skb, struct sk_buff *skb)
 {
 	int status = 0;
 	struct ath6kl_usb *device = ath6kl_usb_priv(ar);
@@ -709,7 +709,7 @@ static int ath6kl_usb_send(struct ath6kl *ar, u8 PipeID,
 
 	ath6kl_dbg(ATH6KL_DBG_USB_BULK,
 		   "+%s pipe : %d, buf:0x%p\n",
-		   __func__, PipeID, buf);
+		   __func__, PipeID, skb);
 
 	urb_context = ath6kl_usb_alloc_urb_from_pipe(pipe);
 
@@ -724,10 +724,10 @@ static int ath6kl_usb_send(struct ath6kl *ar, u8 PipeID,
 		status = -ENOMEM;
 		goto fail_hif_send;
 	}
-	urb_context->buf = buf;
+	urb_context->skb = skb;
 
-	data = buf->data;
-	len = buf->len;
+	data = skb->data;
+	len = skb->len;
 	urb = usb_alloc_urb(0, GFP_ATOMIC);
 	if (urb == NULL) {
 		status = -ENOMEM;
