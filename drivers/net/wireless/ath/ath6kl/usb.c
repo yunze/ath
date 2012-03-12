@@ -127,8 +127,8 @@ static void ath6kl_usb_recv_complete(struct urb *urb);
 #define ATH6KL_USB_IS_DIR_IN(addr)  ((addr) & 0x80)
 
 /* pipe/urb operations */
-static struct ath6kl_urb_context *ath6kl_usb_alloc_urb_from_pipe(
-						struct ath6kl_usb_pipe *pipe)
+static struct ath6kl_urb_context *
+ath6kl_usb_alloc_urb_from_pipe(struct ath6kl_usb_pipe *pipe)
 {
 	struct ath6kl_urb_context *urb_context = NULL;
 	unsigned long flags;
@@ -147,7 +147,7 @@ static struct ath6kl_urb_context *ath6kl_usb_alloc_urb_from_pipe(
 }
 
 static void ath6kl_usb_free_urb_to_pipe(struct ath6kl_usb_pipe *pipe,
-				     struct ath6kl_urb_context *urb_context)
+					struct ath6kl_urb_context *urb_context)
 {
 	unsigned long flags;
 
@@ -251,7 +251,7 @@ static void ath6kl_usb_cleanup_pipe_resources(struct ath6kl_usb *device)
 }
 
 static u8 ath6kl_usb_get_logical_pipe_num(struct ath6kl_usb *device,
-				       u8 ep_address, int *urb_count)
+					  u8 ep_address, int *urb_count)
 {
 	u8 pipe_num = ATH6KL_USB_PIPE_INVALID;
 
@@ -340,8 +340,8 @@ static int ath6kl_usb_setup_pipe_resources(struct ath6kl_usb *device)
 
 		pipe_num =
 		    ath6kl_usb_get_logical_pipe_num(device,
-						 endpoint->bEndpointAddress,
-						 &urbcount);
+						    endpoint->bEndpointAddress,
+						    &urbcount);
 		if (pipe_num == ATH6KL_USB_PIPE_INVALID)
 			continue;
 
@@ -404,7 +404,7 @@ static int ath6kl_usb_setup_pipe_resources(struct ath6kl_usb *device)
 
 /* pipe operations */
 static void ath6kl_usb_post_recv_transfers(struct ath6kl_usb_pipe *recv_pipe,
-					int buffer_length)
+					   int buffer_length)
 {
 	struct ath6kl_urb_context *urb_context;
 	struct urb *urb;
@@ -467,8 +467,10 @@ static void ath6kl_usb_flush_all(struct ath6kl_usb *device)
 			usb_kill_anchored_urbs(&device->pipes[i].urb_submitted);
 	}
 
-	/* flushing any pending I/O may schedule work
-	 * this call will block until all scheduled work runs to completion */
+	/*
+	 * Flushing any pending I/O may schedule work this call will block
+	 * until all scheduled work runs to completion.
+	 */
 	flush_scheduled_work();
 }
 
@@ -696,7 +698,7 @@ static void hif_start(struct ath6kl *ar)
 }
 
 static int ath6kl_usb_send(struct ath6kl *ar, u8 PipeID,
-	struct sk_buff *hdr_skb, struct sk_buff *skb)
+			   struct sk_buff *hdr_skb, struct sk_buff *skb)
 {
 	int status = 0;
 	struct ath6kl_usb *device = ath6kl_usb_priv(ar);
@@ -831,12 +833,12 @@ static int ath6kl_usb_map_service_pipe(struct ath6kl *ar, u16 svcId, u8 *ULPipe,
 }
 
 static void ath6kl_usb_register_callback(struct ath6kl *ar,
-		void *unused,
-		struct ath6kl_hif_pipe_callbacks *callbacks)
+					 void *unused,
+					 struct ath6kl_hif_pipe_callbacks *cbs)
 {
 	struct ath6kl_usb *device = ath6kl_usb_priv(ar);
 
-	memcpy(&device->htc_callbacks, callbacks,
+	memcpy(&device->htc_callbacks, cbs,
 	       sizeof(struct ath6kl_hif_pipe_callbacks));
 }
 
