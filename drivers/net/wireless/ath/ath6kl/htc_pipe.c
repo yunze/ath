@@ -224,7 +224,7 @@ static int htc_issue_packets(struct htc_target *target,
 
 		nbuf = packet->skb;
 		if (!nbuf) {
-			WARN_ON(1);
+			WARN_ON_ONCE(1);
 			status = -EINVAL;
 			break;
 		}
@@ -234,7 +234,7 @@ static int htc_issue_packets(struct htc_target *target,
 		htc_hdr = (struct htc_frame_hdr *) skb_push(nbuf,
 							    sizeof(*htc_hdr));
 		if (!htc_hdr) {
-			WARN_ON(1);
+			WARN_ON_ONCE(1);
 			status = -EINVAL;
 			break;
 		}
@@ -363,7 +363,7 @@ static enum htc_send_queue_result htc_try_send(struct htc_target *target,
 			int good_pkts =
 				get_queue_depth(callers_send_queue) - overflow;
 			if (good_pkts < 0) {
-				WARN_ON(1);
+				WARN_ON_ONCE(1);
 				return HTC_SEND_QUEUE_DROP;
 			}
 
@@ -427,7 +427,7 @@ static enum htc_send_queue_result htc_try_send(struct htc_target *target,
 		/* transfer packets to tail */
 		list_splice_tail_init(&send_queue, &ep->txq);
 		if (!list_empty(&send_queue)) {
-			WARN_ON(1);
+			WARN_ON_ONCE(1);
 			spin_unlock_bh(&target->tx_lock);
 			return HTC_SEND_QUEUE_DROP;
 		}
@@ -705,7 +705,7 @@ static void htc_process_credit_report(struct htc_target *target,
 
 	for (i = 0; i < num_entries; i++, rpt++) {
 		if (rpt->eid >= ENDPOINT_MAX) {
-			WARN_ON(1);
+			WARN_ON_ONCE(1);
 			spin_unlock_bh(&target->tx_lock);
 			return;
 		}
@@ -834,7 +834,7 @@ static int htc_send_packets_multiple(struct htc_target *target,
 		return -EINVAL;
 
 	if (packet->endpoint >= ENDPOINT_MAX) {
-		WARN_ON(1);
+		WARN_ON_ONCE(1);
 		return -EINVAL;
 	}
 	ep = &target->endpoint[packet->endpoint];
@@ -928,7 +928,7 @@ static int htc_process_trailer(struct htc_target *target, u8 *buffer,
 		switch (record->rec_id) {
 		case HTC_RECORD_CREDITS:
 			if (record->len < sizeof(struct htc_credit_report)) {
-				WARN_ON(1);
+				WARN_ON_ONCE(1);
 				return -EINVAL;
 			}
 
@@ -1268,7 +1268,7 @@ static int ath6kl_htc_pipe_conn_service(struct htc_target *target,
 	bool disable_credit_flowctrl = false;
 
 	if (conn_req->svc_id == 0) {
-		WARN_ON(1);
+		WARN_ON_ONCE(1);
 		status = -EINVAL;
 		goto free_packet;
 	}
@@ -1291,7 +1291,7 @@ static int ath6kl_htc_pipe_conn_service(struct htc_target *target,
 		packet = htc_alloc_txctrl_packet(target);
 
 		if (packet == NULL) {
-			WARN_ON(1);
+			WARN_ON_ONCE(1);
 			status = -ENOMEM;
 			goto free_packet;
 		}
@@ -1303,7 +1303,7 @@ static int ath6kl_htc_pipe_conn_service(struct htc_target *target,
 		conn_msg = (struct htc_conn_service_msg *) skb_put(netbuf,
 								   length);
 		if (conn_msg == NULL) {
-			WARN_ON(1);
+			WARN_ON_ONCE(1);
 			status = -EINVAL;
 			goto free_packet;
 		}
@@ -1348,7 +1348,7 @@ static int ath6kl_htc_pipe_conn_service(struct htc_target *target,
 		if (resp_msg->msg_id != cpu_to_le16(HTC_MSG_CONN_SVC_RESP_ID) ||
 		    (target->ctrl_response_len < sizeof(*resp_msg))) {
 			/* this message is not valid */
-			WARN_ON(1);
+			WARN_ON_ONCE(1);
 			status = -EINVAL;
 			goto free_packet;
 		}
@@ -1378,12 +1378,12 @@ static int ath6kl_htc_pipe_conn_service(struct htc_target *target,
 	status = -EINVAL;
 
 	if (assigned_epid >= ENDPOINT_MAX) {
-		WARN_ON(1);
+		WARN_ON_ONCE(1);
 		goto free_packet;
 	}
 
 	if (max_msg_size == 0) {
-		WARN_ON(1);
+		WARN_ON_ONCE(1);
 		goto free_packet;
 	}
 
@@ -1391,7 +1391,7 @@ static int ath6kl_htc_pipe_conn_service(struct htc_target *target,
 	ep->eid = assigned_epid;
 	if (ep->svc_id != 0) {
 		/* endpoint already in use! */
-		WARN_ON(1);
+		WARN_ON_ONCE(1);
 		goto free_packet;
 	}
 
@@ -1528,7 +1528,7 @@ static int ath6kl_htc_pipe_start(struct htc_target *target)
 	/* allocate a buffer to send */
 	packet = htc_alloc_txctrl_packet(target);
 	if (packet == NULL) {
-		WARN_ON(1);
+		WARN_ON_ONCE(1);
 		return -ENOMEM;
 	}
 
@@ -1655,7 +1655,7 @@ static void ath6kl_htc_pipe_flush_txep(struct htc_target *target,
 	struct htc_endpoint *ep = &target->endpoint[endpoint];
 
 	if (ep->svc_id == 0) {
-		WARN_ON(1);
+		WARN_ON_ONCE(1);
 		/* not in use.. */
 		return;
 	}
@@ -1676,12 +1676,12 @@ static int ath6kl_htc_pipe_add_rxbuf_multiple(struct htc_target *target,
 
 	first = list_first_entry(pkt_queue, struct htc_packet, list);
 	if (first == NULL) {
-		WARN_ON(1);
+		WARN_ON_ONCE(1);
 		return -EINVAL;
 	}
 
 	if (first->endpoint >= ENDPOINT_MAX) {
-		WARN_ON(1);
+		WARN_ON_ONCE(1);
 		return -EINVAL;
 	}
 
