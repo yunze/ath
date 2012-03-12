@@ -410,7 +410,7 @@ static void ath6kl_usb_post_recv_transfers(struct ath6kl_usb_pipe *recv_pipe,
 	struct urb *urb;
 	int usb_status;
 
-	while (1) {
+	while (true) {
 
 		urb_context = ath6kl_usb_alloc_urb_from_pipe(recv_pipe);
 		if (urb_context == NULL)
@@ -795,10 +795,7 @@ static int ath6kl_usb_map_service_pipe(struct ath6kl *ar, u16 svcId, u8 *ULPipe,
 	case WMI_CONTROL_SVC:
 		*ULPipe = ATH6KL_USB_PIPE_TX_CTRL;
 		/* due to large control packets, shift to data pipe */
-		if (0)
-			*DLPipe = ATH6KL_USB_PIPE_RX_CTRL;
-		else
-			*DLPipe = ATH6KL_USB_PIPE_RX_DATA;
+		*DLPipe = ATH6KL_USB_PIPE_RX_DATA;
 		break;
 	case WMI_DATA_BE_SVC:
 	case WMI_DATA_BK_SVC:
@@ -807,10 +804,7 @@ static int ath6kl_usb_map_service_pipe(struct ath6kl *ar, u16 svcId, u8 *ULPipe,
 		* Disable rxdata2 directly, it will be enabled
 		* if FW enable rxdata2
 		*/
-		if (1)
-			*DLPipe = ATH6KL_USB_PIPE_RX_DATA;
-		else
-			*DLPipe = ATH6KL_USB_PIPE_RX_DATA2;
+		*DLPipe = ATH6KL_USB_PIPE_RX_DATA;
 		break;
 	case WMI_DATA_VI_SVC:
 		*ULPipe = ATH6KL_USB_PIPE_TX_DATA_MP;
@@ -818,10 +812,7 @@ static int ath6kl_usb_map_service_pipe(struct ath6kl *ar, u16 svcId, u8 *ULPipe,
 		* Disable rxdata2 directly, it will be enabled
 		* if FW enable rxdata2
 		*/
-		if (1)
-			*DLPipe = ATH6KL_USB_PIPE_RX_DATA;
-		else
-			*DLPipe = ATH6KL_USB_PIPE_RX_DATA2;
+		*DLPipe = ATH6KL_USB_PIPE_RX_DATA;
 		break;
 	case WMI_DATA_VO_SVC:
 		*ULPipe = ATH6KL_USB_PIPE_TX_DATA_HP;
@@ -829,10 +820,7 @@ static int ath6kl_usb_map_service_pipe(struct ath6kl *ar, u16 svcId, u8 *ULPipe,
 		* Disable rxdata2 directly, it will be enabled
 		* if FW enable rxdata2
 		*/
-		if (1)
-			*DLPipe = ATH6KL_USB_PIPE_RX_DATA;
-		else
-			*DLPipe = ATH6KL_USB_PIPE_RX_DATA2;
+		*DLPipe = ATH6KL_USB_PIPE_RX_DATA;
 		break;
 	default:
 		status = -EPERM;
