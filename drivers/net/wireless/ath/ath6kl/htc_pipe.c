@@ -300,7 +300,7 @@ static int htc_issue_packets(struct htc_target *target,
 
 static enum htc_send_queue_result htc_try_send(struct htc_target *target,
 					       struct htc_endpoint *ep,
-					       struct list_head *callers_send_queue)
+					       struct list_head *txq)
 {
 	struct list_head send_queue;	/* temp queue to hold packets */
 	struct htc_packet *packet, *tmp_pkt;
@@ -310,19 +310,19 @@ static enum htc_send_queue_result htc_try_send(struct htc_target *target,
 
 	ath6kl_dbg(ATH6KL_DBG_HTC,
 		   "%s: (queue:0x%lX depth:%d)\n",
-		   __func__, (unsigned long)callers_send_queue,
-		   (callers_send_queue ==
-		    NULL) ? 0 : get_queue_depth(callers_send_queue));
+		   __func__, (unsigned long) txq,
+		   (txq == NULL) ? 0 : get_queue_depth(txq));
 
 	/* init the local send queue */
 	INIT_LIST_HEAD(&send_queue);
+
 	/*
-	 * callers_send_queue equals to NULL means
+	 * txq equals to NULL means
 	 * caller didn't provide a queue, just wants us to
 	 * check queues and send
 	 */
-	if (callers_send_queue != NULL) {
-		if (list_empty(callers_send_queue)) {
+	if (txq != NULL) {
+		if (list_empty(txq)) {
 			/* empty queue */
 			return HTC_SEND_QUEUE_DROP;
 		}
@@ -333,11 +333,11 @@ static enum htc_send_queue_result htc_try_send(struct htc_target *target,
 
 		if (txqueue_depth >= ep->max_txq_depth) {
 			/* we've already overflowed */
-			overflow = get_queue_depth(callers_send_queue);
+			overflow = get_queue_depth(txq);
 		} else {
 			/* get how much we will overflow by */
 			overflow = txqueue_depth;
-			overflow += get_queue_depth(callers_send_queue);
+			overflow += get_queue_depth(txq);
 			/* get how much we will overflow the TX queue by */
 			overflow -= ep->max_txq_depth;
 		}
@@ -357,11 +357,10 @@ static enum htc_send_queue_result htc_try_send(struct htc_target *target,
 			 * full indication handler -- just move all of them
 			 * to the local send_queue object
 			 */
-			list_splice_tail_init(callers_send_queue, &send_queue);
+			list_splice_tail_init(txq, &send_queue);
 		} else {
 			int i;
-			int good_pkts =
-				get_queue_depth(callers_send_queue) - overflow;
+			int good_pkts = get_queue_depth(txq) - overflow;
 			if (good_pkts < 0) {
 				WARN_ON_ONCE(1);
 				return HTC_SEND_QUEUE_DROP;
@@ -371,7 +370,7 @@ static enum htc_send_queue_result htc_try_send(struct htc_target *target,
 			/* dequeue all non-overflow packets to the sendqueue */
 			for (i = 0; i < good_pkts; i++) {
 				/* pop off caller's queue */
-				packet = list_first_entry(callers_send_queue,
+				packet = list_first_entry(txq,
 							  struct htc_packet,
 							  list);
 				list_del(&packet->list);
@@ -385,7 +384,7 @@ static enum htc_send_queue_result htc_try_send(struct htc_target *target,
 			 * the send full handler
 			 */
 			list_for_each_entry_safe(packet, tmp_pkt,
-						 callers_send_queue, list) {
+						 txq, list) {
 
 				ath6kl_dbg(ATH6KL_DBG_HTC,
 					   "%s: Indicat overflowed TX pkts: %lX\n",
