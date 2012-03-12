@@ -217,7 +217,7 @@ struct mwifiex_802_11_security {
 	u8 wpa2_enabled;
 	u8 wapi_enabled;
 	u8 wapi_key_on;
-	enum MWIFIEX_802_11_WEP_STATUS wep_status;
+	u8 wep_enabled;
 	u32 authentication_mode;
 	u32 encryption_mode;
 };
@@ -249,7 +249,6 @@ struct mwifiex_bssdescriptor {
 	u32 channel;
 	u32 freq;
 	u16 beacon_period;
-	u8 dtim_period;
 	u8 erp_flags;
 	u32 bss_mode;
 	u8 supported_rates[MWIFIEX_SUPPORTED_RATES];
@@ -392,6 +391,7 @@ struct mwifiex_private {
 	u8 prev_bssid[ETH_ALEN];
 	struct mwifiex_current_bss_params curr_bss_params;
 	u16 beacon_period;
+	u8 dtim_period;
 	u16 listen_interval;
 	u16 atim_window;
 	u8 adhoc_channel;

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2004-2011 Atheros Communications Inc.
+ * Copyright (c) 2011 Qualcomm Atheros, Inc.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -93,6 +94,8 @@
 #define WMI_DATA_VI_SVC   MAKE_SERVICE_ID(WMI_SERVICE_GROUP, 3)
 #define WMI_DATA_VO_SVC   MAKE_SERVICE_ID(WMI_SERVICE_GROUP, 4)
 #define WMI_MAX_SERVICES  5
+
+#define WMM_NUM_AC  4
 
 /* reserved and used to flush ALL packets */
 #define HTC_TX_PACKET_TAG_ALL          0
@@ -518,6 +521,8 @@ struct htc_endpoint {
 	u8 seqno;
 	u32 conn_flags;
 	struct htc_endpoint_stats ep_st;
+	u16 tx_drop_packet_threshold;
+
 	u8 pipeid_ul;
 	u8 pipeid_dl;
 	struct list_head tx_lookup_queue;
@@ -577,9 +582,16 @@ struct htc_target {
 	struct ath6kl_htc_credit_info *credit_info;
 	int tgt_creds;
 	unsigned int tgt_cred_sz;
+
+	/* protects free_ctrl_txbuf and free_ctrl_rxbuf */
 	spinlock_t htc_lock;
+
+	/* FIXME: does this protext rx_bufq and endpoint structures or what? */
 	spinlock_t rx_lock;
+
+	/* protects endpoint->txq */
 	spinlock_t tx_lock;
+
 	struct ath6kl_device *dev;
 	u32 htc_flags;
 	u32 rx_st_flags;
@@ -589,7 +601,7 @@ struct htc_target {
 	/* max messages per bundle for HTC */
 	int msg_per_bndl_max;
 
-	bool tx_bndl_enable;
+	u32 tx_bndl_mask;
 	int rx_bndl_enable;
 	int max_rx_bndl_sz;
 	int max_tx_bndl_sz;
@@ -601,6 +613,9 @@ struct htc_target {
 	int max_xfer_szper_scatreq;
 
 	int chk_irq_status_cnt;
+
+	/* counts the number of Tx without bundling continously per AC */
+	u32 ac_tx_count[WMM_NUM_AC];
 
 	struct htc_packet *htc_packet_pool;	/* pool of HTC packets */
 	u8 ctrl_response_buf[HTC_MAX_CTRL_MSG_LEN];
