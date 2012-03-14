@@ -915,7 +915,7 @@ static int ath6kl_usb_submit_ctrl_in(struct ath6kl_usb *ar_usb,
 			   __func__, ret);
 	}
 
-	memcpy(data, buf, size);
+	memcpy((u8 *) data, buf, size);
 
 	kfree(buf);
 
