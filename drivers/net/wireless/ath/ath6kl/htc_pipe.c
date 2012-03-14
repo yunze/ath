@@ -1179,7 +1179,7 @@ static int htc_wait_recv_ctrl_message(struct htc_target *target)
 
 		count--;
 
-		msleep_interruptible(1);
+		msleep_interruptible(HTC_TARGET_RESPONSE_POLL_WAIT);
 	}
 
 	if (count <= 0) {
