@@ -177,9 +177,8 @@ static inline struct ath6kl_usb *ath6kl_usb_priv(struct ath6kl *ar)
 static int ath6kl_usb_alloc_pipe_resources(struct ath6kl_usb_pipe *pipe,
 					   int urb_cnt)
 {
-	int status = 0;
-	int i;
 	struct ath6kl_urb_context *urb_context;
+	int status = 0, i;
 
 	INIT_LIST_HEAD(&pipe->urb_list_head);
 	init_usb_anchor(&pipe->urb_submitted);
@@ -200,9 +199,9 @@ static int ath6kl_usb_alloc_pipe_resources(struct ath6kl_usb_pipe *pipe,
 		pipe->urb_alloc++;
 		ath6kl_usb_free_urb_to_pipe(pipe, urb_context);
 	}
+
 	ath6kl_dbg(ATH6KL_DBG_USB,
-		   "ath6kl usb: alloc resources lpipe:%d"
-		   "hpipe:0x%X urbs:%d\n",
+		   "ath6kl usb: alloc resources lpipe:%d hpipe:0x%X urbs:%d\n",
 		   pipe->logical_pipe_num, pipe->usb_pipe_handle,
 		   pipe->urb_alloc);
 
@@ -301,12 +300,12 @@ static int ath6kl_usb_setup_pipe_resources(struct ath6kl_usb *device)
 	struct usb_interface *interface = device->interface;
 	struct usb_host_interface *iface_desc = interface->cur_altsetting;
 	struct usb_endpoint_descriptor *endpoint;
-	int i;
-	int urbcount;
-	int status = 0;
 	struct ath6kl_usb_pipe *pipe;
+	int i, urbcount, status = 0;
 	u8 pipe_num;
+
 	ath6kl_dbg(ATH6KL_DBG_USB, "setting up USB Pipes using interface\n");
+
 	/* walk decriptors and setup pipes */
 	for (i = 0; i < iface_desc->desc.bNumEndpoints; ++i) {
 		endpoint = &iface_desc->endpoint[i].desc;
@@ -388,6 +387,7 @@ static int ath6kl_usb_setup_pipe_resources(struct ath6kl_usb *device)
 						    pipe->ep_address);
 			}
 		}
+
 		pipe->ep_desc = endpoint;
 
 		if (!ATH6KL_USB_IS_DIR_IN(pipe->ep_address))
@@ -396,7 +396,6 @@ static int ath6kl_usb_setup_pipe_resources(struct ath6kl_usb *device)
 		status = ath6kl_usb_alloc_pipe_resources(pipe, urbcount);
 		if (status != 0)
 			break;
-
 	}
 
 	return status;
@@ -411,7 +410,6 @@ static void ath6kl_usb_post_recv_transfers(struct ath6kl_usb_pipe *recv_pipe,
 	int usb_status;
 
 	while (true) {
-
 		urb_context = ath6kl_usb_alloc_urb_from_pipe(recv_pipe);
 		if (urb_context == NULL)
 			break;
@@ -432,8 +430,7 @@ static void ath6kl_usb_post_recv_transfers(struct ath6kl_usb_pipe *recv_pipe,
 				  ath6kl_usb_recv_complete, urb_context);
 
 		ath6kl_dbg(ATH6KL_DBG_USB_BULK,
-			   "ath6kl usb: bulk recv submit:%d, 0x%X"
-			   "(ep:0x%2.2X), %d bytes buf:0x%p\n",
+			   "ath6kl usb: bulk recv submit:%d, 0x%X (ep:0x%2.2X), %d bytes buf:0x%p\n",
 			   recv_pipe->logical_pipe_num,
 			   recv_pipe->usb_pipe_handle, recv_pipe->ep_address,
 			   buffer_length, urb_context->skb);
@@ -495,9 +492,9 @@ static void ath6kl_usb_start_recv_pipes(struct ath6kl_usb *device)
 static void ath6kl_usb_recv_complete(struct urb *urb)
 {
 	struct ath6kl_urb_context *urb_context = urb->context;
-	int status = 0;
-	struct sk_buff *skb = NULL;
 	struct ath6kl_usb_pipe *pipe = urb_context->pipe;
+	struct sk_buff *skb = NULL;
+	int status = 0;
 
 	ath6kl_dbg(ATH6KL_DBG_USB_BULK,
 		   "%s: recv pipe: %d, stat:%d, len:%d urb:0x%p\n", __func__,
@@ -525,13 +522,16 @@ static void ath6kl_usb_recv_complete(struct urb *urb)
 		}
 		goto cleanup_recv_urb;
 	}
+
 	if (urb->actual_length == 0)
 		goto cleanup_recv_urb;
 
 	skb = urb_context->skb;
+
 	/* we are going to pass it up */
 	urb_context->skb = NULL;
 	skb_put(skb, urb->actual_length);
+
 	/* note: queue implements a lock */
 	skb_queue_tail(&pipe->io_comp_queue, skb);
 	schedule_work(&pipe->io_complete_work);
@@ -544,15 +544,13 @@ cleanup_recv_urb:
 		/* our free urbs are piling up, post more transfers */
 		ath6kl_usb_post_recv_transfers(pipe, ATH6KL_USB_RX_BUFFER_SIZE);
 	}
-
-	return;
 }
 
 static void ath6kl_usb_usb_transmit_complete(struct urb *urb)
 {
 	struct ath6kl_urb_context *urb_context = urb->context;
-	struct sk_buff *skb;
 	struct ath6kl_usb_pipe *pipe = urb_context->pipe;
+	struct sk_buff *skb;
 
 	ath6kl_dbg(ATH6KL_DBG_USB_BULK,
 		   "%s: pipe: %d, stat:%d, len:%d\n",
@@ -576,12 +574,14 @@ static void ath6kl_usb_usb_transmit_complete(struct urb *urb)
 
 static void ath6kl_usb_io_comp_work(struct work_struct *work)
 {
-	struct ath6kl_usb_pipe *pipe =
-	    container_of(work, struct ath6kl_usb_pipe, io_complete_work);
-	struct sk_buff *skb;
+	struct ath6kl_usb_pipe *pipe = container_of(work,
+						    struct ath6kl_usb_pipe,
+						    io_complete_work);
 	struct ath6kl_usb *device;
+	struct sk_buff *skb;
 
 	device = pipe->ar_usb;
+
 	while ((skb = skb_dequeue(&pipe->io_comp_queue))) {
 		if (pipe->flags & ATH6KL_USB_PIPE_FLAG_TX) {
 			ath6kl_dbg(ATH6KL_DBG_USB_BULK,
@@ -617,8 +617,8 @@ static void ath6kl_usb_destroy(struct ath6kl_usb *ar_usb)
 
 static struct ath6kl_usb *ath6kl_usb_create(struct usb_interface *interface)
 {
-	struct ath6kl_usb *ar_usb = NULL;
 	struct usb_device *dev = interface_to_usbdev(interface);
+	struct ath6kl_usb *ar_usb;
 	struct ath6kl_usb_pipe *pipe;
 	int status = 0;
 	int i;
@@ -697,17 +697,15 @@ static void hif_start(struct ath6kl *ar)
 static int ath6kl_usb_send(struct ath6kl *ar, u8 PipeID,
 			   struct sk_buff *hdr_skb, struct sk_buff *skb)
 {
-	int status = 0;
 	struct ath6kl_usb *device = ath6kl_usb_priv(ar);
 	struct ath6kl_usb_pipe *pipe = &device->pipes[PipeID];
 	struct ath6kl_urb_context *urb_context;
+	int usb_status, status = 0;
+	struct urb *urb;
 	u8 *data;
 	u32 len;
-	struct urb *urb;
-	int usb_status;
 
-	ath6kl_dbg(ATH6KL_DBG_USB_BULK,
-		   "+%s pipe : %d, buf:0x%p\n",
+	ath6kl_dbg(ATH6KL_DBG_USB_BULK, "+%s pipe : %d, buf:0x%p\n",
 		   __func__, PipeID, skb);
 
 	urb_context = ath6kl_usb_alloc_urb_from_pipe(pipe);
@@ -723,10 +721,12 @@ static int ath6kl_usb_send(struct ath6kl *ar, u8 PipeID,
 		status = -ENOMEM;
 		goto fail_hif_send;
 	}
+
 	urb_context->skb = skb;
 
 	data = skb->data;
 	len = skb->len;
+
 	urb = usb_alloc_urb(0, GFP_ATOMIC);
 	if (urb == NULL) {
 		status = -ENOMEM;
@@ -778,14 +778,15 @@ static void hif_stop(struct ath6kl *ar)
 }
 
 static void ath6kl_usb_get_default_pipe(struct ath6kl *ar,
-	u8 *ul_pipe, u8 *dl_pipe)
+					u8 *ul_pipe, u8 *dl_pipe)
 {
 	*ul_pipe = ATH6KL_USB_PIPE_TX_CTRL;
 	*dl_pipe = ATH6KL_USB_PIPE_RX_CTRL;
 }
 
-static int ath6kl_usb_map_service_pipe(struct ath6kl *ar, u16 svcId, u8 *ULPipe,
-			 u8 *DLPipe)
+/* FIXME: camel */
+static int ath6kl_usb_map_service_pipe(struct ath6kl *ar, u16 svcId,
+				       u8 *ULPipe, u8 *DLPipe)
 {
 	int status = 0;
 
@@ -829,6 +830,7 @@ static int ath6kl_usb_map_service_pipe(struct ath6kl *ar, u16 svcId, u8 *ULPipe,
 	return status;
 }
 
+/* FIXME: unused? */
 static void ath6kl_usb_register_callback(struct ath6kl *ar,
 					 void *unused,
 					 struct ath6kl_hif_pipe_callbacks *cbs)
@@ -839,9 +841,11 @@ static void ath6kl_usb_register_callback(struct ath6kl *ar,
 	       sizeof(struct ath6kl_hif_pipe_callbacks));
 }
 
+/* FIXME: camel */
 static u16 ath6kl_usb_get_free_queue_number(struct ath6kl *ar, u8 PipeID)
 {
 	struct ath6kl_usb *device = ath6kl_usb_priv(ar);
+
 	return device->pipes[PipeID].urb_cnt;
 }
 
