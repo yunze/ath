@@ -523,10 +523,12 @@ struct htc_endpoint {
 	struct htc_endpoint_stats ep_st;
 	u16 tx_drop_packet_threshold;
 
-	u8 pipeid_ul;
-	u8 pipeid_dl;
-	struct list_head tx_lookup_queue;
-	bool tx_credit_flow_enabled;
+	struct {
+		u8 pipeid_ul;
+		u8 pipeid_dl;
+		struct list_head tx_lookup_queue;
+		bool tx_credit_flow_enabled;
+	} pipe;
 };
 
 struct htc_control_buffer {

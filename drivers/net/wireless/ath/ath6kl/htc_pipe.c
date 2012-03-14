@@ -252,12 +252,12 @@ static int htc_issue_packets(struct htc_target *target,
 		spin_lock_bh(&target->tx_lock);
 
 		/* store in look up queue to match completions */
-		list_add_tail(&packet->list, &ep->tx_lookup_queue);
+		list_add_tail(&packet->list, &ep->pipe.tx_lookup_queue);
 		ep->ep_st.tx_issued += 1;
 		spin_unlock_bh(&target->tx_lock);
 
 		status = ath6kl_hif_pipe_send(target->dev->ar,
-					      ep->pipeid_ul, NULL, skb);
+					      ep->pipe.pipeid_ul, NULL, skb);
 
 		if (status != 0) {
 			if (status != -ENOMEM) {
@@ -417,9 +417,10 @@ static enum htc_send_queue_result htc_try_send(struct htc_target *target,
 		}
 	}
 
-	if (!ep->tx_credit_flow_enabled) {
+	if (!ep->pipe.tx_credit_flow_enabled) {
 		tx_resources =
-		    ath6kl_hif_pipe_get_free_queue_number(ar, ep->pipeid_ul);
+		    ath6kl_hif_pipe_get_free_queue_number(ar,
+							  ep->pipe.pipeid_ul);
 	} else {
 		tx_resources = 0;
 	}
@@ -461,7 +462,7 @@ static enum htc_send_queue_result htc_try_send(struct htc_target *target,
 		if (get_queue_depth(&ep->txq) == 0)
 			break;
 
-		if (ep->tx_credit_flow_enabled) {
+		if (ep->pipe.tx_credit_flow_enabled) {
 			/*
 			 * Credit based mechanism provides flow control
 			 * based on target transmit resource availability,
@@ -491,8 +492,8 @@ static enum htc_send_queue_result htc_try_send(struct htc_target *target,
 		/* send what we can */
 		htc_issue_packets(target, ep, &send_queue);
 
-		if (!ep->tx_credit_flow_enabled) {
-			pipeid = ep->pipeid_ul;
+		if (!ep->pipe.tx_credit_flow_enabled) {
+			pipeid = ep->pipe.pipeid_ul;
 			tx_resources =
 			    ath6kl_hif_pipe_get_free_queue_number(ar, pipeid);
 		}
@@ -515,7 +516,7 @@ static void htc_tx_resource_available(struct htc_target *target, u8 pipeid)
 	for (i = 0; i < ENDPOINT_MAX; i++) {
 		ep = &target->endpoint[i];
 		if (ep->svc_id != 0) {
-			if (ep->pipeid_ul == pipeid)
+			if (ep->pipe.pipeid_ul == pipeid)
 				break;
 		}
 	}
@@ -762,7 +763,8 @@ static struct htc_packet *htc_lookup_tx_packet(struct htc_target *target,
 	 * this lookup should be fast since lower layers completes in-order and
 	 * so the completed packet should be at the head of the list generally
 	 */
-	list_for_each_entry_safe(packet, tmp_pkt, &ep->tx_lookup_queue, list) {
+	list_for_each_entry_safe(packet, tmp_pkt, &ep->pipe.tx_lookup_queue,
+				 list) {
 		/* check for removal */
 		if (skb == packet->skb) {
 			/* found it */
@@ -804,7 +806,7 @@ static int htc_tx_completion(struct htc_target *target, struct sk_buff *skb)
 	}
 	skb = NULL;
 
-	if (!ep->tx_credit_flow_enabled) {
+	if (!ep->pipe.tx_credit_flow_enabled) {
 		/*
 		 * note: when using TX credit flow, the re-checking of queues
 		 * happens when credits flow back from the target. in the
@@ -1210,10 +1212,10 @@ static void reset_endpoint_states(struct htc_target *target)
 		ep->max_txq_depth = 0;
 		ep->eid = i;
 		INIT_LIST_HEAD(&ep->txq);
-		INIT_LIST_HEAD(&ep->tx_lookup_queue);
+		INIT_LIST_HEAD(&ep->pipe.tx_lookup_queue);
 		INIT_LIST_HEAD(&ep->rx_bufq);
 		ep->target = target;
-		ep->tx_credit_flow_enabled = (bool) 1;
+		ep->pipe.tx_credit_flow_enabled = (bool) 1; /* FIXME */
 	}
 }
 
@@ -1405,17 +1407,18 @@ static int ath6kl_htc_pipe_conn_service(struct htc_target *target,
 	ep->ep_cb = conn_req->ep_cb;
 
 	status = ath6kl_hif_pipe_map_service(ar, ep->svc_id,
-					     &ep->pipeid_ul, &ep->pipeid_dl);
+					     &ep->pipe.pipeid_ul,
+					     &ep->pipe.pipeid_dl);
 	if (status != 0)
 		goto free_packet;
 
 	ath6kl_dbg(ATH6KL_DBG_HTC,
 		   "SVC Ready: 0x%4.4X: ULpipe:%d DLpipe:%d id:%d\n",
-		   ep->svc_id, ep->pipeid_ul,
-		   ep->pipeid_dl, ep->eid);
+		   ep->svc_id, ep->pipe.pipeid_ul,
+		   ep->pipe.pipeid_dl, ep->eid);
 
-	if (disable_credit_flowctrl && ep->tx_credit_flow_enabled) {
-		ep->tx_credit_flow_enabled = false;
+	if (disable_credit_flowctrl && ep->pipe.tx_credit_flow_enabled) {
+		ep->pipe.tx_credit_flow_enabled = false;
 		ath6kl_dbg(ATH6KL_DBG_HTC,
 			   "SVC: 0x%4.4X ep:%d TX flow control off\n",
 			   ep->svc_id, assigned_epid);
@@ -1476,7 +1479,8 @@ static void *ath6kl_htc_pipe_create(struct ath6kl *ar)
 	ep = &target->endpoint[ENDPOINT_0];
 
 	ath6kl_hif_pipe_register_callback(ar, target, &htc_callbacks);
-	ath6kl_hif_pipe_get_default(ar, &ep->pipeid_ul, &ep->pipeid_dl);
+	ath6kl_hif_pipe_get_default(ar, &ep->pipe.pipeid_ul,
+				    &ep->pipe.pipeid_dl);
 
 	return target;
 
