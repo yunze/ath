@@ -26,10 +26,10 @@
 static void ath6kl_htc_mbox_cleanup(struct htc_target *target);
 static void ath6kl_htc_mbox_stop(struct htc_target *target);
 static int ath6kl_htc_mbox_add_rxbuf_multiple(struct htc_target *target,
-				  struct list_head *pkt_queue);
+					      struct list_head *pkt_queue);
 static void ath6kl_htc_set_credit_dist(struct htc_target *target,
-				struct ath6kl_htc_credit_info *cred_info,
-				u16 svc_pri_order[], int len);
+				       struct ath6kl_htc_credit_info *cred_info,
+				       u16 svc_pri_order[], int len);
 
 /* threshold to re-enable Tx bundling for an AC*/
 #define TX_RESUME_BUNDLE_THRESHOLD	1500
