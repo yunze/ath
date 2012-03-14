@@ -228,7 +228,7 @@ struct ath6kl_irq_enable_reg {
 struct ath6kl_hif_pipe_callbacks {
 	int (*tx_completion) (struct htc_target *context, struct sk_buff *skb);
 	int (*rx_completion) (struct htc_target *context,
-				struct sk_buff *skb, u8 pipe);
+			      struct sk_buff *skb, u8 pipe);
 	void (*tx_resource_available) (struct htc_target *context, u8 pipe);
 };
 
@@ -266,13 +266,15 @@ struct ath6kl_hif_ops {
 	int (*power_on)(struct ath6kl *ar);
 	int (*power_off)(struct ath6kl *ar);
 	void (*stop)(struct ath6kl *ar);
+	/* FIXME: remove void pointer */
 	void (*pipe_register_callback)(struct ath6kl *ar,
-		void *htc_context, struct ath6kl_hif_pipe_callbacks *callbacks);
+				       void *htc_context,
+				       struct ath6kl_hif_pipe_callbacks *cb);
 	int (*pipe_send)(struct ath6kl *ar, u8 pipe, struct sk_buff *hdr_buf,
-		struct sk_buff *buf);
+			 struct sk_buff *buf);
 	void (*pipe_get_default)(struct ath6kl *ar, u8 *pipe_ul, u8 *pipe_dl);
 	int (*pipe_map_service)(struct ath6kl *ar, u16 service_id, u8 *pipe_ul,
-		u8 *pipe_dl);
+				u8 *pipe_dl);
 	u16 (*pipe_get_free_queue_number)(struct ath6kl *ar, u8 pipe);
 };
 

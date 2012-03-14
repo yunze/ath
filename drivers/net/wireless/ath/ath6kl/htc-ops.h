@@ -36,14 +36,14 @@ static inline int ath6kl_htc_start(struct htc_target *target)
 }
 
 static inline int ath6kl_htc_conn_service(struct htc_target *target,
-			    struct htc_service_connect_req *req,
-			    struct htc_service_connect_resp *resp)
+					  struct htc_service_connect_req *req,
+					  struct htc_service_connect_resp *resp)
 {
 	return target->dev->ar->htc_ops->conn_service(target, req, resp);
 }
 
 static inline int ath6kl_htc_tx(struct htc_target *target,
-	struct htc_packet *packet)
+				struct htc_packet *packet)
 {
 	return target->dev->ar->htc_ops->tx(target, packet);
 }
@@ -59,7 +59,8 @@ static inline void ath6kl_htc_cleanup(struct htc_target *target)
 }
 
 static inline void ath6kl_htc_flush_txep(struct htc_target *target,
-			   enum htc_endpoint_id endpoint, u16 tag)
+					 enum htc_endpoint_id endpoint,
+					 u16 tag)
 {
 	return target->dev->ar->htc_ops->flush_txep(target, endpoint, tag);
 }
@@ -69,27 +70,29 @@ static inline void ath6kl_htc_flush_rx_buf(struct htc_target *target)
 	return target->dev->ar->htc_ops->flush_rx_buf(target);
 }
 
-static inline void ath6kl_htc_indicate_activity_change(
-	struct htc_target *target, enum htc_endpoint_id endpoint, bool active)
+static inline void ath6kl_htc_indicate_activity_change(struct htc_target *target,
+						       enum htc_endpoint_id endpoint,
+						       bool active)
 {
 	return target->dev->ar->htc_ops->indicate_activity_change(target,
-			endpoint, active);
+								  endpoint,
+								  active);
 }
 
 static inline int ath6kl_htc_get_rxbuf_num(struct htc_target *target,
-			     enum htc_endpoint_id endpoint)
+					   enum htc_endpoint_id endpoint)
 {
 	return target->dev->ar->htc_ops->get_rxbuf_num(target, endpoint);
 }
 
 static inline int ath6kl_htc_add_rxbuf_multiple(struct htc_target *target,
-				  struct list_head *pktq)
+						struct list_head *pktq)
 {
 	return target->dev->ar->htc_ops->add_rxbuf_multiple(target, pktq);
 }
 
 static inline int ath6kl_htc_credit_setup(struct htc_target *target,
-			    struct ath6kl_htc_credit_info *cred_info)
+					  struct ath6kl_htc_credit_info *cred_info)
 {
 	return target->dev->ar->htc_ops->credit_setup(target, cred_info);
 }
