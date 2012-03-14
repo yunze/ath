@@ -150,9 +150,10 @@ static inline void ath6kl_hif_stop(struct ath6kl *ar)
 	ar->hif_ops->stop(ar);
 }
 
+
 static inline void ath6kl_hif_pipe_register_callback(struct ath6kl *ar,
-		void *htc_context,
-		struct ath6kl_hif_pipe_callbacks *callbacks)
+			void *htc_context,
+			struct ath6kl_hif_pipe_callbacks *callbacks)
 {
 	ath6kl_dbg(ATH6KL_DBG_HIF, "hif pipe register callback\n");
 
@@ -160,7 +161,8 @@ static inline void ath6kl_hif_pipe_register_callback(struct ath6kl *ar,
 }
 
 static inline int ath6kl_hif_pipe_send(struct ath6kl *ar,
-	u8 pipe, struct sk_buff *hdr_buf, struct sk_buff *buf)
+				       u8 pipe, struct sk_buff *hdr_buf,
+				       struct sk_buff *buf)
 {
 	ath6kl_dbg(ATH6KL_DBG_HIF, "hif pipe send\n");
 
@@ -168,7 +170,7 @@ static inline int ath6kl_hif_pipe_send(struct ath6kl *ar,
 }
 
 static inline void ath6kl_hif_pipe_get_default(struct ath6kl *ar,
-	u8 *ul_pipe, u8 *dl_pipe)
+					       u8 *ul_pipe, u8 *dl_pipe)
 {
 	ath6kl_dbg(ATH6KL_DBG_HIF, "hif pipe get default\n");
 
@@ -176,7 +178,8 @@ static inline void ath6kl_hif_pipe_get_default(struct ath6kl *ar,
 }
 
 static inline int ath6kl_hif_pipe_map_service(struct ath6kl *ar,
-	u16 service_id, u8 *ul_pipe, u8 *dl_pipe)
+					      u16 service_id, u8 *ul_pipe,
+					      u8 *dl_pipe)
 {
 	ath6kl_dbg(ATH6KL_DBG_HIF, "hif pipe get default\n");
 
@@ -184,7 +187,7 @@ static inline int ath6kl_hif_pipe_map_service(struct ath6kl *ar,
 }
 
 static inline u16 ath6kl_hif_pipe_get_free_queue_number(struct ath6kl *ar,
-	u8 pipe)
+							u8 pipe)
 {
 	ath6kl_dbg(ATH6KL_DBG_HIF, "hif pipe get free queue number\n");
 
