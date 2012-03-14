@@ -542,6 +542,7 @@ int ath6kl_configure_target(struct ath6kl *ar)
 	 */
 
 	if (ar->target_type == TARGET_TYPE_AR6003) {
+		param = ar->hw.board_ext_data_addr;
 		ram_reserved_size = ar->hw.reserved_ram_size;
 
 		if (ath6kl_bmi_write_hi32(ar, hi_board_ext_data, param) != 0) {
