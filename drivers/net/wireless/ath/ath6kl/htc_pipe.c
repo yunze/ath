@@ -1179,10 +1179,7 @@ static int htc_wait_recv_ctrl_message(struct htc_target *target)
 
 		count--;
 
-		/* FIXME: msleep_interruptible()? */
-		set_current_state(TASK_INTERRUPTIBLE);
-		schedule_timeout((HZ / 1000) * (HTC_TARGET_RESPONSE_POLL_WAIT));
-		set_current_state(TASK_RUNNING);
+		msleep_interruptible(1);
 	}
 
 	if (count <= 0) {
