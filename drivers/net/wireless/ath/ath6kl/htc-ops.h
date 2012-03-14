@@ -91,9 +91,9 @@ static inline int ath6kl_htc_add_rxbuf_multiple(struct htc_target *target,
 }
 
 static inline int ath6kl_htc_credit_setup(struct htc_target *target,
-					  struct ath6kl_htc_credit_info *cred_info)
+					  struct ath6kl_htc_credit_info *info)
 {
-	return target->dev->ar->htc_ops->credit_setup(target, cred_info);
+	return target->dev->ar->htc_ops->credit_setup(target, info);
 }
 
 #endif

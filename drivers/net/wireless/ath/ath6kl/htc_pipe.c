@@ -1603,7 +1603,7 @@ static int ath6kl_htc_pipe_wait_target(struct htc_target *target)
 	if (status != 0)
 		return status;
 
-	if (target->pipe.ctrl_response_len < (sizeof(struct htc_ready_ext_msg))) {
+	if (target->pipe.ctrl_response_len < sizeof(*ready_msg)) {
 		ath6kl_dbg(ATH6KL_DBG_HTC, "invalid htc ready msg len:%d!\n",
 			   target->pipe.ctrl_response_len);
 		return -ECOMM;
