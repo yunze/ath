@@ -784,43 +784,42 @@ static void ath6kl_usb_get_default_pipe(struct ath6kl *ar,
 	*dl_pipe = ATH6KL_USB_PIPE_RX_CTRL;
 }
 
-/* FIXME: camel */
-static int ath6kl_usb_map_service_pipe(struct ath6kl *ar, u16 svcId,
-				       u8 *ULPipe, u8 *DLPipe)
+static int ath6kl_usb_map_service_pipe(struct ath6kl *ar, u16 svc_id,
+				       u8 *ul_pipe, u8 *dl_pipe)
 {
 	int status = 0;
 
-	switch (svcId) {
+	switch (svc_id) {
 	case HTC_CTRL_RSVD_SVC:
 	case WMI_CONTROL_SVC:
-		*ULPipe = ATH6KL_USB_PIPE_TX_CTRL;
+		*ul_pipe = ATH6KL_USB_PIPE_TX_CTRL;
 		/* due to large control packets, shift to data pipe */
-		*DLPipe = ATH6KL_USB_PIPE_RX_DATA;
+		*dl_pipe = ATH6KL_USB_PIPE_RX_DATA;
 		break;
 	case WMI_DATA_BE_SVC:
 	case WMI_DATA_BK_SVC:
-		*ULPipe = ATH6KL_USB_PIPE_TX_DATA_LP;
+		*ul_pipe = ATH6KL_USB_PIPE_TX_DATA_LP;
 		/*
 		* Disable rxdata2 directly, it will be enabled
 		* if FW enable rxdata2
 		*/
-		*DLPipe = ATH6KL_USB_PIPE_RX_DATA;
+		*dl_pipe = ATH6KL_USB_PIPE_RX_DATA;
 		break;
 	case WMI_DATA_VI_SVC:
-		*ULPipe = ATH6KL_USB_PIPE_TX_DATA_MP;
+		*ul_pipe = ATH6KL_USB_PIPE_TX_DATA_MP;
 		/*
 		* Disable rxdata2 directly, it will be enabled
 		* if FW enable rxdata2
 		*/
-		*DLPipe = ATH6KL_USB_PIPE_RX_DATA;
+		*dl_pipe = ATH6KL_USB_PIPE_RX_DATA;
 		break;
 	case WMI_DATA_VO_SVC:
-		*ULPipe = ATH6KL_USB_PIPE_TX_DATA_HP;
+		*ul_pipe = ATH6KL_USB_PIPE_TX_DATA_HP;
 		/*
 		* Disable rxdata2 directly, it will be enabled
 		* if FW enable rxdata2
 		*/
-		*DLPipe = ATH6KL_USB_PIPE_RX_DATA;
+		*dl_pipe = ATH6KL_USB_PIPE_RX_DATA;
 		break;
 	default:
 		status = -EPERM;
@@ -841,12 +840,11 @@ static void ath6kl_usb_register_callback(struct ath6kl *ar,
 	       sizeof(struct ath6kl_hif_pipe_callbacks));
 }
 
-/* FIXME: camel */
-static u16 ath6kl_usb_get_free_queue_number(struct ath6kl *ar, u8 PipeID)
+static u16 ath6kl_usb_get_free_queue_number(struct ath6kl *ar, u8 pipe_id)
 {
 	struct ath6kl_usb *device = ath6kl_usb_priv(ar);
 
-	return device->pipes[PipeID].urb_cnt;
+	return device->pipes[pipe_id].urb_cnt;
 }
 
 static void hif_detach_htc(struct ath6kl *ar)
