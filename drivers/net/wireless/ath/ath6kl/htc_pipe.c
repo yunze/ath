@@ -210,7 +210,7 @@ static int htc_issue_packets(struct htc_target *target,
 {
 	int status = 0;
 	u16 payload_len;
-	struct sk_buff *nbuf;
+	struct sk_buff *skb;
 	struct htc_frame_hdr *htc_hdr;
 	struct htc_packet *packet;
 
@@ -222,8 +222,8 @@ static int htc_issue_packets(struct htc_target *target,
 		packet = list_first_entry(pkt_queue, struct htc_packet, list);
 		list_del(&packet->list);
 
-		nbuf = packet->skb;
-		if (!nbuf) {
+		skb = packet->skb;
+		if (!skb) {
 			WARN_ON_ONCE(1);
 			status = -EINVAL;
 			break;
@@ -231,7 +231,7 @@ static int htc_issue_packets(struct htc_target *target,
 
 		payload_len = packet->act_len;
 		/* setup HTC frame header */
-		htc_hdr = (struct htc_frame_hdr *) skb_push(nbuf,
+		htc_hdr = (struct htc_frame_hdr *) skb_push(skb,
 							    sizeof(*htc_hdr));
 		if (!htc_hdr) {
 			WARN_ON_ONCE(1);
@@ -255,7 +255,7 @@ static int htc_issue_packets(struct htc_target *target,
 		spin_unlock_bh(&target->tx_lock);
 
 		status = ath6kl_hif_pipe_send(target->dev->ar,
-					      ep->pipeid_ul, NULL, nbuf);
+					      ep->pipeid_ul, NULL, skb);
 
 		if (status != 0) {
 			if (status != -ENOMEM) {
@@ -536,10 +536,10 @@ static void htc_tx_resource_available(struct htc_target *target, u8 pipeid)
 /* htc control packet manipulation */
 static void destroy_htc_txctrl_packet(struct htc_packet *packet)
 {
-	struct sk_buff *netbuf;
-	netbuf = packet->skb;
-	if (netbuf != NULL)
-		dev_kfree_skb(netbuf);
+	struct sk_buff *skb;
+	skb = packet->skb;
+	if (skb != NULL)
+		dev_kfree_skb(skb);
 
 	kfree(packet);
 }
@@ -547,20 +547,20 @@ static void destroy_htc_txctrl_packet(struct htc_packet *packet)
 static struct htc_packet *build_htc_txctrl_packet(void)
 {
 	struct htc_packet *packet = NULL;
-	struct sk_buff *netbuf;
+	struct sk_buff *skb;
 
 	packet = kzalloc(sizeof(struct htc_packet), GFP_KERNEL);
 	if (packet == NULL)
 		return NULL;
 
 	memset(packet, 0, sizeof(struct htc_packet));
-	netbuf = __dev_alloc_skb(HTC_CONTROL_BUFFER_SIZE, GFP_KERNEL);
+	skb = __dev_alloc_skb(HTC_CONTROL_BUFFER_SIZE, GFP_KERNEL);
 
-	if (netbuf == NULL) {
+	if (skb == NULL) {
 		kfree(packet);
 		return NULL;
 	}
-	packet->skb = netbuf;
+	packet->skb = skb;
 
 	return packet;
 }
@@ -748,13 +748,13 @@ static void htc_flush_tx_endpoint(struct htc_target *target,
 /*
  * In the adapted HIF layer, struct sk_buff * are passed between HIF and HTC,
  * since upper layers expects struct htc_packet containers we use the completed
- * netbuf and lookup it's corresponding HTC packet buffer from a lookup list.
+ * skb and lookup it's corresponding HTC packet buffer from a lookup list.
  * This is extra overhead that can be fixed by re-aligning HIF interfaces with
  * HTC.
  */
 static struct htc_packet *htc_lookup_tx_packet(struct htc_target *target,
 					       struct htc_endpoint *ep,
-					       struct sk_buff *netbuf)
+					       struct sk_buff *skb)
 {
 	struct htc_packet *packet, *tmp_pkt;
 	struct htc_packet *found_packet = NULL;
@@ -768,7 +768,7 @@ static struct htc_packet *htc_lookup_tx_packet(struct htc_target *target,
 	 */
 	list_for_each_entry_safe(packet, tmp_pkt, &ep->tx_lookup_queue, list) {
 		/* check for removal */
-		if (netbuf == packet->skb) {
+		if (skb == packet->skb) {
 			/* found it */
 			list_del(&packet->list);
 			found_packet = packet;
@@ -781,7 +781,7 @@ static struct htc_packet *htc_lookup_tx_packet(struct htc_target *target,
 	return found_packet;
 }
 
-static int htc_tx_completion(struct htc_target *target, struct sk_buff *netbuf)
+static int htc_tx_completion(struct htc_target *target, struct sk_buff *skb)
 {
 	u8 *netdata;
 	u32 netlen;
@@ -789,15 +789,15 @@ static int htc_tx_completion(struct htc_target *target, struct sk_buff *netbuf)
 	u8 EpID;
 	struct htc_endpoint *ep;
 	struct htc_packet *packet;
-	netdata = netbuf->data;
-	netlen = netbuf->len;
+	netdata = skb->data;
+	netlen = skb->len;
 
 	htc_hdr = (struct htc_frame_hdr *) netdata;
 
 	EpID = htc_hdr->eid;
 	ep = &target->endpoint[EpID];
 
-	packet = htc_lookup_tx_packet(target, ep, netbuf);
+	packet = htc_lookup_tx_packet(target, ep, skb);
 	if (packet == NULL) {
 		/* may have already been flushed and freed */
 		ath6kl_err("HTC TX lookup failed!\n");
@@ -806,7 +806,7 @@ static int htc_tx_completion(struct htc_target *target, struct sk_buff *netbuf)
 		packet->status = 0;
 		send_packet_completion(target, packet);
 	}
-	netbuf = NULL;
+	skb = NULL;
 
 	if (!ep->tx_credit_flow_enabled) {
 		/*
@@ -994,7 +994,7 @@ static void recv_packet_completion(struct htc_target *target,
 }
 
 static int htc_rx_completion(struct htc_target *target,
-			     struct sk_buff *netbuf, u8 pipeid)
+			     struct sk_buff *skb, u8 pipeid)
 {
 	int status = 0;
 	struct htc_frame_hdr *htc_hdr;
@@ -1006,8 +1006,8 @@ static int htc_rx_completion(struct htc_target *target,
 	u16 payload_len;
 	u32 trailerlen = 0;
 
-	netdata = netbuf->data;
-	netlen = netbuf->len;
+	netdata = skb->data;
+	netlen = skb->len;
 
 	htc_hdr = (struct htc_frame_hdr *) netdata;
 
@@ -1018,7 +1018,7 @@ static int htc_rx_completion(struct htc_target *target,
 			   "HTC Rx: invalid EndpointID=%d\n",
 			   htc_hdr->eid);
 		status = -EINVAL;
-		goto free_netbuf;
+		goto free_skb;
 	}
 
 	payload_len = le16_to_cpu(get_unaligned(&htc_hdr->payld_len));
@@ -1028,7 +1028,7 @@ static int htc_rx_completion(struct htc_target *target,
 			   "HTC Rx: insufficient length, got:%d expected =%u\n",
 			   netlen, payload_len + HTC_HDR_LENGTH);
 		status = -EINVAL;
-		goto free_netbuf;
+		goto free_skb;
 	}
 
 	/* get flags to check for trailer */
@@ -1043,7 +1043,7 @@ static int htc_rx_completion(struct htc_target *target,
 				   "should be %d, CB[0]: %d\n",
 				   payload_len, hdr_info);
 			status = -EINVAL;
-			goto free_netbuf;
+			goto free_skb;
 		}
 
 		trailerlen = hdr_info;
@@ -1053,12 +1053,12 @@ static int htc_rx_completion(struct htc_target *target,
 		status = htc_process_trailer(target, trailer, hdr_info,
 					     htc_hdr->eid);
 		if (status != 0)
-			goto free_netbuf;
+			goto free_skb;
 	}
 
 	if (((int)payload_len - (int)trailerlen) <= 0) {
 		/* zero length packet with trailer, just drop these */
-		goto free_netbuf;
+		goto free_skb;
 	}
 
 	if (htc_hdr->eid == ENDPOINT_0) {
@@ -1071,14 +1071,14 @@ static int htc_rx_completion(struct htc_target *target,
 			ath6kl_dbg(ATH6KL_DBG_HTC,
 				   "HTC ignores Rx Ctrl after setup complete\n");
 			status = -EINVAL;
-			goto free_netbuf;
+			goto free_skb;
 		}
 
 		/* remove HTC header */
-		skb_pull(netbuf, HTC_HDR_LENGTH);
+		skb_pull(skb, HTC_HDR_LENGTH);
 
-		netdata = netbuf->data;
-		netlen = netbuf->len;
+		netdata = skb->data;
+		netlen = skb->len;
 
 		spin_lock_bh(&target->rx_lock);
 
@@ -1090,9 +1090,9 @@ static int htc_rx_completion(struct htc_target *target,
 
 		spin_unlock_bh(&target->rx_lock);
 
-		dev_kfree_skb(netbuf);
-		netbuf = NULL;
-		goto free_netbuf;
+		dev_kfree_skb(skb);
+		skb = NULL;
+		goto free_skb;
 	}
 
 	/*
@@ -1103,32 +1103,32 @@ static int htc_rx_completion(struct htc_target *target,
 	packet = alloc_htc_packet_container(target);
 	if (packet == NULL) {
 		status = -ENOMEM;
-		goto free_netbuf;
+		goto free_skb;
 	}
 
 	packet->status = 0;
 	packet->endpoint = htc_hdr->eid;
-	packet->pkt_cntxt = netbuf;
+	packet->pkt_cntxt = skb;
 
 	/* TODO: for backwards compatibility */
-	packet->buf = skb_push(netbuf, 0) + HTC_HDR_LENGTH;
+	packet->buf = skb_push(skb, 0) + HTC_HDR_LENGTH;
 	packet->act_len = netlen - HTC_HDR_LENGTH - trailerlen;
 
 	/*
 	 * TODO: this is a hack because the driver layer will set the
 	 * actual len of the skb again which will just double the len
 	 */
-	skb_trim(netbuf, 0);
+	skb_trim(skb, 0);
 
 	recv_packet_completion(target, ep, packet);
 
 	/* recover the packet container */
 	free_htc_packet_container(target, packet);
-	netbuf = NULL;
+	skb = NULL;
 
-free_netbuf:
-	if (netbuf != NULL)
-		dev_kfree_skb(netbuf);
+free_skb:
+	if (skb != NULL)
+		dev_kfree_skb(skb);
 
 	return status;
 
@@ -1267,7 +1267,7 @@ static int ath6kl_htc_pipe_conn_service(struct htc_target *target,
 	enum htc_endpoint_id assigned_epid = ENDPOINT_MAX;
 	struct htc_endpoint *ep;
 	unsigned int max_msg_size = 0;
-	struct sk_buff *netbuf;
+	struct sk_buff *skb;
 	u8 tx_alloc;
 	int length;
 	bool disable_credit_flowctrl = false;
@@ -1302,11 +1302,11 @@ static int ath6kl_htc_pipe_conn_service(struct htc_target *target,
 			goto free_packet;
 		}
 
-		netbuf = packet->skb;
+		skb = packet->skb;
 		length = sizeof(struct htc_conn_service_msg);
 
 		/* assemble connect service message */
-		conn_msg = (struct htc_conn_service_msg *) skb_put(netbuf,
+		conn_msg = (struct htc_conn_service_msg *) skb_put(skb,
 								   length);
 		if (conn_msg == NULL) {
 			WARN_ON_ONCE(1);
@@ -1526,7 +1526,7 @@ static void ath6kl_htc_pipe_cleanup(struct htc_target *target)
 
 static int ath6kl_htc_pipe_start(struct htc_target *target)
 {
-	struct sk_buff *netbuf;
+	struct sk_buff *skb;
 	struct htc_setup_comp_ext_msg *setup;
 	struct htc_packet *packet;
 
@@ -1539,9 +1539,9 @@ static int ath6kl_htc_pipe_start(struct htc_target *target)
 		return -ENOMEM;
 	}
 
-	netbuf = packet->skb;
+	skb = packet->skb;
 	/* assemble setup complete message */
-	setup = (struct htc_setup_comp_ext_msg *) skb_put(netbuf,
+	setup = (struct htc_setup_comp_ext_msg *) skb_put(skb,
 							  sizeof(*setup));
 	memset(setup, 0, sizeof(struct htc_setup_comp_ext_msg));
 	setup->msg_id = cpu_to_le16(HTC_MSG_SETUP_COMPLETE_EX_ID);
