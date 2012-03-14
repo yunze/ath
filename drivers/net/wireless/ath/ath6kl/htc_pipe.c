@@ -554,8 +554,6 @@ static struct htc_packet *build_htc_txctrl_packet(void)
 	if (packet == NULL)
 		return NULL;
 
-	/* FIXME: useless memset() */
-	memset(packet, 0, sizeof(struct htc_packet));
 	skb = __dev_alloc_skb(HTC_CONTROL_BUFFER_SIZE, GFP_KERNEL);
 
 	if (skb == NULL) {
@@ -1449,9 +1447,6 @@ static void *ath6kl_htc_pipe_create(struct ath6kl *ar)
 		goto fail_htc_create;
 	}
 
-	/* FIXME: unnecessary memset() */
-	memset(target, 0, sizeof(struct htc_target));
-
 	spin_lock_init(&target->htc_lock);
 	spin_lock_init(&target->rx_lock);
 	spin_lock_init(&target->tx_lock);
@@ -1460,11 +1455,9 @@ static void *ath6kl_htc_pipe_create(struct ath6kl *ar)
 
 	for (i = 0; i < HTC_PACKET_CONTAINER_ALLOCATION; i++) {
 		packet = kzalloc(sizeof(struct htc_packet), GFP_KERNEL);
-		if (packet != NULL) {
-			/* FIXME: unnecessary memset() */
-			memset(packet, 0, sizeof(struct htc_packet));
+
+		if (packet != NULL)
 			free_htc_packet_container(target, packet);
-		}
 	}
 
 	/* setup HIF layer callbacks */
