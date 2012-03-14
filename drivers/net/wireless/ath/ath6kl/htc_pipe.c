@@ -598,7 +598,7 @@ static int htc_setup_target_buffer_assignments(struct htc_target *target)
 	/* TODO, this should be configured by the caller! */
 
 	credits = target->tgt_creds;
-	entry = &target->txcredit_alloc[0];
+	entry = &target->pipe.txcredit_alloc[0];
 
 	status = -ENOMEM;
 
@@ -676,13 +676,13 @@ static int htc_setup_target_buffer_assignments(struct htc_target *target)
 
 	if (status == 0) {
 		for (i = 0; i < ENDPOINT_MAX; i++) {
-			if (target->txcredit_alloc[i].service_id != 0) {
+			if (target->pipe.txcredit_alloc[i].service_id != 0) {
 				ath6kl_dbg(ATH6KL_DBG_HTC,
 					   "HTC Service Index : %d TX : 0x%2.2X : alloc:%d\n",
 					   i,
-					   target->txcredit_alloc[i].
+					   target->pipe.txcredit_alloc[i].
 					   service_id,
-					   target->txcredit_alloc[i].
+					   target->pipe.txcredit_alloc[i].
 					   credit_alloc);
 			}
 		}
@@ -858,13 +858,13 @@ static struct htc_packet *alloc_htc_packet_container(struct htc_target *target)
 	struct htc_packet *packet;
 	spin_lock_bh(&target->rx_lock);
 
-	if (target->htc_packet_pool == NULL) {
+	if (target->pipe.htc_packet_pool == NULL) {
 		spin_unlock_bh(&target->rx_lock);
 		return NULL;
 	}
 
-	packet = target->htc_packet_pool;
-	target->htc_packet_pool = (struct htc_packet *) packet->list.next;
+	packet = target->pipe.htc_packet_pool;
+	target->pipe.htc_packet_pool = (struct htc_packet *) packet->list.next;
 
 	spin_unlock_bh(&target->rx_lock);
 
@@ -879,13 +879,13 @@ static void free_htc_packet_container(struct htc_target *target,
 
 	spin_lock_bh(&target->rx_lock);
 
-	if (target->htc_packet_pool == NULL) {
-		target->htc_packet_pool = packet;
+	if (target->pipe.htc_packet_pool == NULL) {
+		target->pipe.htc_packet_pool = packet;
 		packet->list.next = NULL;
 	} else {
-		lh = (struct list_head *) target->htc_packet_pool;
+		lh = (struct list_head *) target->pipe.htc_packet_pool;
 		packet->list.next = lh;
-		target->htc_packet_pool = packet;
+		target->pipe.htc_packet_pool = packet;
 	}
 
 	spin_unlock_bh(&target->rx_lock);
@@ -1075,11 +1075,11 @@ static int htc_rx_completion(struct htc_target *target,
 
 		spin_lock_bh(&target->rx_lock);
 
-		target->ctrl_response_valid = true;
-		target->ctrl_response_len = min_t(int, netlen,
-						  HTC_MAX_CTRL_MSG_LEN);
-		memcpy(target->ctrl_response_buf, netdata,
-		       target->ctrl_response_len);
+		target->pipe.ctrl_response_valid = true;
+		target->pipe.ctrl_response_len = min_t(int, netlen,
+						       HTC_MAX_CTRL_MSG_LEN);
+		memcpy(target->pipe.ctrl_response_buf, netdata,
+		       target->pipe.ctrl_response_len);
 
 		spin_unlock_bh(&target->rx_lock);
 
@@ -1171,8 +1171,8 @@ static int htc_wait_recv_ctrl_message(struct htc_target *target)
 	while (count > 0) {
 		spin_lock_bh(&target->rx_lock);
 
-		if (target->ctrl_response_valid) {
-			target->ctrl_response_valid = false;
+		if (target->pipe.ctrl_response_valid) {
+			target->pipe.ctrl_response_valid = false;
 			spin_unlock_bh(&target->rx_lock);
 			break;
 		}
@@ -1232,8 +1232,9 @@ static u8 htc_get_credit_alloc(struct htc_target *target, u16 service_id)
 	int i;
 
 	for (i = 0; i < ENDPOINT_MAX; i++) {
-		if (target->txcredit_alloc[i].service_id == service_id)
-			allocation = target->txcredit_alloc[i].credit_alloc;
+		if (target->pipe.txcredit_alloc[i].service_id == service_id)
+			allocation =
+				target->pipe.txcredit_alloc[i].credit_alloc;
 	}
 
 	if (allocation == 0) {
@@ -1339,10 +1340,10 @@ static int ath6kl_htc_pipe_conn_service(struct htc_target *target,
 		 * properly aligned
 		 */
 		resp_msg = (struct htc_conn_service_resp *)
-		    target->ctrl_response_buf;
+		    target->pipe.ctrl_response_buf;
 
 		if (resp_msg->msg_id != cpu_to_le16(HTC_MSG_CONN_SVC_RESP_ID) ||
-		    (target->ctrl_response_len < sizeof(*resp_msg))) {
+		    (target->pipe.ctrl_response_len < sizeof(*resp_msg))) {
 			/* this message is not valid */
 			WARN_ON_ONCE(1);
 			status = -EINVAL;
@@ -1602,13 +1603,13 @@ static int ath6kl_htc_pipe_wait_target(struct htc_target *target)
 	if (status != 0)
 		return status;
 
-	if (target->ctrl_response_len < (sizeof(struct htc_ready_ext_msg))) {
+	if (target->pipe.ctrl_response_len < (sizeof(struct htc_ready_ext_msg))) {
 		ath6kl_dbg(ATH6KL_DBG_HTC, "invalid htc ready msg len:%d!\n",
-			   target->ctrl_response_len);
+			   target->pipe.ctrl_response_len);
 		return -ECOMM;
 	}
 
-	ready_msg = (struct htc_ready_ext_msg *) target->ctrl_response_buf;
+	ready_msg = (struct htc_ready_ext_msg *) target->pipe.ctrl_response_buf;
 
 	if (ready_msg->ver2_0_info.msg_id != cpu_to_le16(HTC_MSG_READY_ID)) {
 		ath6kl_dbg(ATH6KL_DBG_HTC, "invalid htc ready msg : 0x%X !\n",

@@ -619,11 +619,13 @@ struct htc_target {
 	/* counts the number of Tx without bundling continously per AC */
 	u32 ac_tx_count[WMM_NUM_AC];
 
-	struct htc_packet *htc_packet_pool;	/* pool of HTC packets */
-	u8 ctrl_response_buf[HTC_MAX_CTRL_MSG_LEN];
-	int ctrl_response_len;
-	bool ctrl_response_valid;
-	struct htc_pipe_txcredit_alloc txcredit_alloc[ENDPOINT_MAX];
+	struct {
+		struct htc_packet *htc_packet_pool;
+		u8 ctrl_response_buf[HTC_MAX_CTRL_MSG_LEN];
+		int ctrl_response_len;
+		bool ctrl_response_valid;
+		struct htc_pipe_txcredit_alloc txcredit_alloc[ENDPOINT_MAX];
+	} pipe;
 };
 
 int ath6kl_htc_rxmsg_pending_handler(struct htc_target *target,
