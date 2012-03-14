@@ -551,23 +551,23 @@ struct ath6kl_htc_ops {
 	int (*wait_target)(struct htc_target *target);
 	int (*start)(struct htc_target *target);
 	int (*conn_service)(struct htc_target *target,
-		struct htc_service_connect_req *req,
-		struct htc_service_connect_resp *resp);
+			    struct htc_service_connect_req *req,
+			    struct htc_service_connect_resp *resp);
 	int  (*tx)(struct htc_target *target, struct htc_packet *packet);
 	void (*stop)(struct htc_target *target);
 	void (*cleanup)(struct htc_target *target);
 	void (*flush_txep)(struct htc_target *target,
-		enum htc_endpoint_id endpoint, u16 tag);
+			   enum htc_endpoint_id endpoint, u16 tag);
 	void (*flush_rx_buf)(struct htc_target *target);
 	void (*activity_changed)(struct htc_target *target,
 				 enum htc_endpoint_id endpoint,
 				 bool active);
 	int (*get_rxbuf_num)(struct htc_target *target,
-		enum htc_endpoint_id endpoint);
+			     enum htc_endpoint_id endpoint);
 	int (*add_rxbuf_multiple)(struct htc_target *target,
-		struct list_head *pktq);
+				  struct list_head *pktq);
 	int (*credit_setup)(struct htc_target *target,
-		struct ath6kl_htc_credit_info *cred_info);
+			    struct ath6kl_htc_credit_info *cred_info);
 };
 
 struct ath6kl_device;
