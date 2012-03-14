@@ -1704,9 +1704,9 @@ static int ath6kl_htc_pipe_add_rxbuf_multiple(struct htc_target *target,
 	return status;
 }
 
-static void ath6kl_htc_pipe_indicate_activity_change(struct htc_target *target,
-						     enum htc_endpoint_id ep,
-						     bool active)
+static void ath6kl_htc_pipe_activity_changed(struct htc_target *target,
+					     enum htc_endpoint_id ep,
+					     bool active)
 {
 	/* TODO */
 }
@@ -1732,7 +1732,7 @@ static const struct ath6kl_htc_ops ath6kl_htc_pipe_ops = {
 	.cleanup = ath6kl_htc_pipe_cleanup,
 	.flush_txep = ath6kl_htc_pipe_flush_txep,
 	.flush_rx_buf = ath6kl_htc_pipe_flush_rx_buf,
-	.indicate_activity_change = ath6kl_htc_pipe_indicate_activity_change,
+	.activity_changed = ath6kl_htc_pipe_activity_changed,
 	.get_rxbuf_num = ath6kl_htc_pipe_get_rxbuf_num,
 	.add_rxbuf_multiple = ath6kl_htc_pipe_add_rxbuf_multiple,
 	.credit_setup = ath6kl_htc_pipe_credit_setup,

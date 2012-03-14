@@ -70,13 +70,12 @@ static inline void ath6kl_htc_flush_rx_buf(struct htc_target *target)
 	return target->dev->ar->htc_ops->flush_rx_buf(target);
 }
 
-static inline void ath6kl_htc_indicate_activity_change(struct htc_target *target,
-						       enum htc_endpoint_id endpoint,
-						       bool active)
+static inline void ath6kl_htc_activity_changed(struct htc_target *target,
+					       enum htc_endpoint_id endpoint,
+					       bool active)
 {
-	return target->dev->ar->htc_ops->indicate_activity_change(target,
-								  endpoint,
-								  active);
+	return target->dev->ar->htc_ops->activity_changed(target, endpoint,
+							  active);
 }
 
 static inline int ath6kl_htc_get_rxbuf_num(struct htc_target *target,

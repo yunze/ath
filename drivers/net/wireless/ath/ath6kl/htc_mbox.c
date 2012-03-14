@@ -1186,8 +1186,9 @@ static void ath6kl_htc_flush_txep_all(struct htc_target *target)
 	}
 }
 
-static void ath6kl_htc_mbox_indicate_activity_change(struct htc_target *target,
-					 enum htc_endpoint_id eid, bool active)
+static void ath6kl_htc_mbox_activity_changed(struct htc_target *target,
+					     enum htc_endpoint_id eid,
+					     bool active)
 {
 	struct htc_endpoint *endpoint = &target->endpoint[eid];
 	bool dist = false;
@@ -2908,7 +2909,7 @@ static const struct ath6kl_htc_ops ath6kl_htc_mbox_ops = {
 	.cleanup = ath6kl_htc_mbox_cleanup,
 	.flush_txep = ath6kl_htc_mbox_flush_txep,
 	.flush_rx_buf = ath6kl_htc_mbox_flush_rx_buf,
-	.indicate_activity_change = ath6kl_htc_mbox_indicate_activity_change,
+	.activity_changed = ath6kl_htc_mbox_activity_changed,
 	.get_rxbuf_num = ath6kl_htc_mbox_get_rxbuf_num,
 	.add_rxbuf_multiple = ath6kl_htc_mbox_add_rxbuf_multiple,
 	.credit_setup = ath6kl_htc_mbox_credit_setup,

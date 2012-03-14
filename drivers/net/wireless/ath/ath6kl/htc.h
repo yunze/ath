@@ -559,9 +559,9 @@ struct ath6kl_htc_ops {
 	void (*flush_txep)(struct htc_target *target,
 		enum htc_endpoint_id endpoint, u16 tag);
 	void (*flush_rx_buf)(struct htc_target *target);
-	void (*indicate_activity_change)(struct htc_target *target,
-		enum htc_endpoint_id endpoint,
-		bool active);
+	void (*activity_changed)(struct htc_target *target,
+				 enum htc_endpoint_id endpoint,
+				 bool active);
 	int (*get_rxbuf_num)(struct htc_target *target,
 		enum htc_endpoint_id endpoint);
 	int (*add_rxbuf_multiple)(struct htc_target *target,
