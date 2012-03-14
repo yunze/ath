@@ -627,7 +627,6 @@ static struct ath6kl_usb *ath6kl_usb_create(struct usb_interface *interface)
 	if (ar_usb == NULL)
 		goto fail_ath6kl_usb_create;
 
-	memset(ar_usb, 0, sizeof(struct ath6kl_usb));
 	usb_set_intfdata(interface, ar_usb);
 	spin_lock_init(&(ar_usb->cs_lock));
 	ar_usb->udev = dev;
