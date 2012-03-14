@@ -782,7 +782,7 @@ static int htc_tx_completion(struct htc_target *target, struct sk_buff *skb)
 	struct htc_frame_hdr *htc_hdr;
 	struct htc_endpoint *ep;
 	struct htc_packet *packet;
-	u8 EpID, *netdata; /* FIXME: camel case */
+	u8 ep_id, *netdata;
 	u32 netlen;
 
 	netdata = skb->data;
@@ -790,8 +790,8 @@ static int htc_tx_completion(struct htc_target *target, struct sk_buff *skb)
 
 	htc_hdr = (struct htc_frame_hdr *) netdata;
 
-	EpID = htc_hdr->eid;
-	ep = &target->endpoint[EpID];
+	ep_id = htc_hdr->eid;
+	ep = &target->endpoint[ep_id];
 
 	packet = htc_lookup_tx_packet(target, ep, skb);
 	if (packet == NULL) {
