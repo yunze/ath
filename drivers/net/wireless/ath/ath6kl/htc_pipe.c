@@ -37,6 +37,8 @@ static inline void restore_tx_packet(struct htc_packet *packet)
 static void do_send_completion(struct htc_endpoint *ep,
 			       struct list_head *queue_to_indicate)
 {
+	struct htc_packet *packet;
+
 	if (list_empty(queue_to_indicate)) {
 		/* nothing to indicate */
 		return;
@@ -44,9 +46,9 @@ static void do_send_completion(struct htc_endpoint *ep,
 
 	if (ep->ep_cb.tx_comp_multi != NULL) {
 		ath6kl_dbg(ATH6KL_DBG_HTC,
-			   "%s: calling ep %d, send complete multiple callback"
-			   "(%d pkts)\n", __func__,
-			   ep->eid, get_queue_depth(queue_to_indicate));
+			   "%s: calling ep %d, send complete multiple callback (%d pkts)\n",
+			   __func__, ep->eid,
+			   get_queue_depth(queue_to_indicate));
 		/*
 		 * a multiple send complete handler is being used,
 		 * pass the queue to the handler
@@ -58,7 +60,6 @@ static void do_send_completion(struct htc_endpoint *ep,
 		 */
 		INIT_LIST_HEAD(queue_to_indicate);
 	} else {
-		struct htc_packet *packet;
 		/* using legacy EpTxComplete */
 		do {
 			packet = list_first_entry(queue_to_indicate,
@@ -66,9 +67,9 @@ static void do_send_completion(struct htc_endpoint *ep,
 
 			list_del(&packet->list);
 			ath6kl_dbg(ATH6KL_DBG_HTC,
-				   "%s: calling ep %d send complete callback on "
-				   "packet 0x%lX\n", __func__,
-				   ep->eid, (unsigned long) (packet));
+				   "%s: calling ep %d send complete callback on packet 0x%lX\n",
+				   __func__, ep->eid,
+				   (unsigned long) (packet));
 			ep->ep_cb.tx_complete(ep->target, packet);
 		} while (!list_empty(queue_to_indicate));
 	}
@@ -83,6 +84,7 @@ static void send_packet_completion(struct htc_target *target,
 	restore_tx_packet(packet);
 	INIT_LIST_HEAD(&container);
 	list_add_tail(&packet->list, &container);
+
 	/* do completion */
 	do_send_completion(ep, &container);
 }
@@ -116,6 +118,7 @@ static void get_htc_packet_credit_based(struct htc_target *target,
 			   get_queue_depth(&ep->txq));
 
 		transfer_len = packet->act_len + HTC_HDR_LENGTH;
+
 		if (transfer_len <= target->tgt_cred_sz) {
 			credits_required = 1;
 		} else {
@@ -127,9 +130,8 @@ static void get_htc_packet_credit_based(struct htc_target *target,
 				credits_required++;
 		}
 
-		ath6kl_dbg(ATH6KL_DBG_HTC, "%s: creds required:%d"
-			   "got:%d\n", __func__, credits_required,
-			   ep->cred_dist.credits);
+		ath6kl_dbg(ATH6KL_DBG_HTC, "%s: creds required:%d got:%d\n",
+			   __func__, credits_required, ep->cred_dist.credits);
 
 		if (ep->eid == ENDPOINT_0) {
 			/*
@@ -198,6 +200,7 @@ static void get_htc_packet(struct htc_target *target,
 		packet->info.tx.flags = 0;
 		packet->info.tx.cred_used = 0;
 		ep->seqno++;
+
 		/* queue this packet into the caller's queue */
 		list_add_tail(&packet->list, queue);
 		resources--;
@@ -230,6 +233,7 @@ static int htc_issue_packets(struct htc_target *target,
 		}
 
 		payload_len = packet->act_len;
+
 		/* setup HTC frame header */
 		htc_hdr = (struct htc_frame_hdr *) skb_push(skb,
 							    sizeof(*htc_hdr));
@@ -249,6 +253,7 @@ static int htc_issue_packets(struct htc_target *target,
 		htc_hdr->ctrl[1] = (u8) packet->info.tx.seqno;
 
 		spin_lock_bh(&target->tx_lock);
+
 		/* store in look up queue to match completions */
 		list_add_tail(&packet->list, &ep->tx_lookup_queue);
 		ep->ep_st.tx_issued += 1;
@@ -270,9 +275,11 @@ static int htc_issue_packets(struct htc_target *target,
 			}
 			spin_lock_bh(&target->tx_lock);
 			list_del(&packet->list);
+
 			/* reclaim credits */
 			ep->cred_dist.credits += packet->info.tx.cred_used;
 			spin_unlock_bh(&target->tx_lock);
+
 			/* put it back into the callers queue */
 			list_add(&packet->list, pkt_queue);
 			break;
@@ -287,6 +294,7 @@ static int htc_issue_packets(struct htc_target *target,
 					   "%s: failed pkt:0x%p status:%d\n",
 					   __func__, packet, status);
 			}
+
 			packet = list_first_entry(pkt_queue,
 						  struct htc_packet, list);
 			list_del(&packet->list);
@@ -306,12 +314,10 @@ static enum htc_send_queue_result htc_try_send(struct htc_target *target,
 	struct htc_packet *packet, *tmp_pkt;
 	struct ath6kl *ar = target->dev->ar;
 	enum htc_send_full_action action;
-	int tx_resources;
-	int overflow, txqueue_depth;
+	int tx_resources, overflow, txqueue_depth, i, good_pkts;
 	u8 pipeid;
 
-	ath6kl_dbg(ATH6KL_DBG_HTC,
-		   "%s: (queue:0x%lX depth:%d)\n",
+	ath6kl_dbg(ATH6KL_DBG_HTC, "%s: (queue:0x%lX depth:%d)\n",
 		   __func__, (unsigned long) txq,
 		   (txq == NULL) ? 0 : get_queue_depth(txq));
 
@@ -347,9 +353,8 @@ static enum htc_send_queue_result htc_try_send(struct htc_target *target,
 		/* if overflow is negative or zero, we are okay */
 		if (overflow > 0) {
 			ath6kl_dbg(ATH6KL_DBG_HTC,
-				   "%s: Endpoint %d, TX queue will overflow :%d, "
-				   "Tx Depth:%d, Max:%d\n", __func__,
-				   ep->eid, overflow, txqueue_depth,
+				   "%s: Endpoint %d, TX queue will overflow :%d, Tx Depth:%d, Max:%d\n",
+				   __func__, ep->eid, overflow, txqueue_depth,
 				   ep->max_txq_depth);
 		}
 		if ((overflow <= 0) ||
@@ -361,8 +366,7 @@ static enum htc_send_queue_result htc_try_send(struct htc_target *target,
 			 */
 			list_splice_tail_init(txq, &send_queue);
 		} else {
-			int i;
-			int good_pkts = get_queue_depth(txq) - overflow;
+			good_pkts = get_queue_depth(txq) - overflow;
 			if (good_pkts < 0) {
 				WARN_ON_ONCE(1);
 				return HTC_SEND_QUEUE_DROP;
@@ -508,8 +512,8 @@ static enum htc_send_queue_result htc_try_send(struct htc_target *target,
 
 static void htc_tx_resource_available(struct htc_target *target, u8 pipeid)
 {
-	int i;
 	struct htc_endpoint *ep = NULL;
+	int i;
 
 	for (i = 0; i < ENDPOINT_MAX; i++) {
 		ep = &target->endpoint[i];
@@ -553,6 +557,7 @@ static struct htc_packet *build_htc_txctrl_packet(void)
 	if (packet == NULL)
 		return NULL;
 
+	/* FIXME: useless memset() */
 	memset(packet, 0, sizeof(struct htc_packet));
 	skb = __dev_alloc_skb(HTC_CONTROL_BUFFER_SIZE, GFP_KERNEL);
 
@@ -586,10 +591,8 @@ static void htc_txctrl_complete(struct htc_target *target,
 
 static int htc_setup_target_buffer_assignments(struct htc_target *target)
 {
+	int status, credits, credit_per_maxmsg, i;
 	struct htc_pipe_txcredit_alloc *entry;
-	int status;
-	int credits;
-	int credit_per_maxmsg;
 	unsigned int hif_usbaudioclass = 0;
 
 	credit_per_maxmsg = MAX_MESSAGE_SIZE / target->tgt_cred_sz;
@@ -603,10 +606,11 @@ static int htc_setup_target_buffer_assignments(struct htc_target *target)
 
 	status = -ENOMEM;
 
+	/* FIXME: hif_usbaudioclass is always zero */
 	if (hif_usbaudioclass) {
 		ath6kl_dbg(ATH6KL_DBG_HTC,
-			   "htc_setup_target_buffer_assignments "
-			   "For USB Audio Class- Total:%d\n", credits);
+			   "%s: For USB Audio Class- Total:%d\n",
+			   __func__, credits);
 		entry++;
 		entry++;
 		/* Setup VO Service To have Max Credits */
@@ -675,12 +679,11 @@ static int htc_setup_target_buffer_assignments(struct htc_target *target)
 	}
 
 	if (status == 0) {
-		int i;
 		for (i = 0; i < ENDPOINT_MAX; i++) {
 			if (target->txcredit_alloc[i].service_id != 0) {
 				ath6kl_dbg(ATH6KL_DBG_HTC,
-					   "HTC Service Index : %d TX : 0x%2.2X :"
-					   "alloc:%d\n", i,
+					   "HTC Service Index : %d TX : 0x%2.2X : alloc:%d\n",
+					   i,
 					   target->txcredit_alloc[i].
 					   service_id,
 					   target->txcredit_alloc[i].
@@ -697,9 +700,8 @@ static void htc_process_credit_report(struct htc_target *target,
 				      int num_entries,
 				      enum htc_endpoint_id from_ep)
 {
-	int i;
+	int total_credits = 0, i;
 	struct htc_endpoint *ep;
-	int total_credits = 0;
 
 	/* lock out TX while we update credits */
 	spin_lock_bh(&target->tx_lock);
@@ -723,7 +725,7 @@ static void htc_process_credit_report(struct htc_target *target,
 		total_credits += rpt->credits;
 	}
 	ath6kl_dbg(ATH6KL_DBG_HTC,
-		   "  Report indicated %d credits to distribute\n",
+		   "Report indicated %d credits to distribute\n",
 		   total_credits);
 
 	spin_unlock_bh(&target->tx_lock);
@@ -756,8 +758,7 @@ static struct htc_packet *htc_lookup_tx_packet(struct htc_target *target,
 					       struct htc_endpoint *ep,
 					       struct sk_buff *skb)
 {
-	struct htc_packet *packet, *tmp_pkt;
-	struct htc_packet *found_packet = NULL;
+	struct htc_packet *packet, *tmp_pkt, *found_packet = NULL;
 
 	spin_lock_bh(&target->tx_lock);
 
@@ -783,12 +784,12 @@ static struct htc_packet *htc_lookup_tx_packet(struct htc_target *target,
 
 static int htc_tx_completion(struct htc_target *target, struct sk_buff *skb)
 {
-	u8 *netdata;
-	u32 netlen;
 	struct htc_frame_hdr *htc_hdr;
-	u8 EpID;
 	struct htc_endpoint *ep;
 	struct htc_packet *packet;
+	u8 EpID, *netdata; /* FIXME: camel case */
+	u32 netlen;
+
 	netdata = skb->data;
 	netlen = skb->len;
 
@@ -898,10 +899,8 @@ static int htc_process_trailer(struct htc_target *target, u8 *buffer,
 {
 	struct htc_credit_report *report;
 	struct htc_record_hdr *record;
-	u8 *record_buf;
-	u8 *orig_buf;
-	int orig_len;
-	int status;
+	u8 *record_buf, *orig_buf;
+	int orig_len, status;
 
 	orig_buf = buffer;
 	orig_len = len;
@@ -921,7 +920,7 @@ static int htc_process_trailer(struct htc_target *target, u8 *buffer,
 		if (record->len > len) {
 			/* no room left in buffer for record */
 			ath6kl_dbg(ATH6KL_DBG_HTC,
-				   " invalid length: %d (id:%d) buffer has: %d bytes left\n",
+				   "invalid length: %d (id:%d) buffer has: %d bytes left\n",
 				   record->len, record->rec_id, len);
 			status = -EINVAL;
 			break;
@@ -944,7 +943,7 @@ static int htc_process_trailer(struct htc_target *target, u8 *buffer,
 			break;
 		default:
 			ath6kl_dbg(ATH6KL_DBG_HTC,
-				   " unhandled record: id:%d length:%d\n",
+				   "unhandled record: id:%d length:%d\n",
 				   record->rec_id, record->len);
 			break;
 		}
@@ -996,15 +995,13 @@ static void recv_packet_completion(struct htc_target *target,
 static int htc_rx_completion(struct htc_target *target,
 			     struct sk_buff *skb, u8 pipeid)
 {
-	int status = 0;
+	u8 *netdata, *trailer, hdr_info;
 	struct htc_frame_hdr *htc_hdr;
-	u8 *netdata, *trailer;
-	u8 hdr_info;
-	u32 netlen;
-	struct htc_endpoint *ep;
+	u32 netlen, trailerlen = 0;
 	struct htc_packet *packet;
+	struct htc_endpoint *ep;
 	u16 payload_len;
-	u32 trailerlen = 0;
+	int status = 0;
 
 	netdata = skb->data;
 	netlen = skb->len;
@@ -1039,8 +1036,7 @@ static int htc_rx_completion(struct htc_target *target,
 		if ((hdr_info < sizeof(struct htc_record_hdr)) ||
 		    (hdr_info > payload_len)) {
 			ath6kl_dbg(ATH6KL_DBG_HTC,
-				   "invalid header: payloadlen"
-				   "should be %d, CB[0]: %d\n",
+				   "invalid header: payloadlen should be %d, CB[0]: %d\n",
 				   payload_len, hdr_info);
 			status = -EINVAL;
 			goto free_skb;
@@ -1056,7 +1052,7 @@ static int htc_rx_completion(struct htc_target *target,
 			goto free_skb;
 	}
 
-	if (((int)payload_len - (int)trailerlen) <= 0) {
+	if (((int) payload_len - (int) trailerlen) <= 0) {
 		/* zero length packet with trailer, just drop these */
 		goto free_skb;
 	}
@@ -1137,8 +1133,8 @@ free_skb:
 static void htc_flush_rx_queue(struct htc_target *target,
 			       struct htc_endpoint *ep)
 {
-	struct htc_packet *packet;
 	struct list_head container;
+	struct htc_packet *packet;
 
 	spin_lock_bh(&target->rx_lock);
 
@@ -1155,7 +1151,7 @@ static void htc_flush_rx_queue(struct htc_target *target,
 		packet->act_len = 0;
 
 		ath6kl_dbg(ATH6KL_DBG_HTC,
-			   "  Flushing RX packet:0x%lX, length:%d, ep:%d\n",
+			   "Flushing RX packet:0x%lX, length:%d, ep:%d\n",
 			   (unsigned long)packet, packet->buf_len,
 			   packet->endpoint);
 
@@ -1260,17 +1256,16 @@ static int ath6kl_htc_pipe_conn_service(struct htc_target *target,
 		     struct htc_service_connect_resp *conn_resp)
 {
 	struct ath6kl *ar = target->dev->ar;
-	int status = 0;
 	struct htc_packet *packet = NULL;
 	struct htc_conn_service_resp *resp_msg;
 	struct htc_conn_service_msg *conn_msg;
 	enum htc_endpoint_id assigned_epid = ENDPOINT_MAX;
-	struct htc_endpoint *ep;
+	bool disable_credit_flowctrl = false;
 	unsigned int max_msg_size = 0;
+	struct htc_endpoint *ep;
+	int length, status = 0;
 	struct sk_buff *skb;
 	u8 tx_alloc;
-	int length;
-	bool disable_credit_flowctrl = false;
 	u16 flags;
 
 	if (conn_req->svc_id == 0) {
@@ -1361,17 +1356,15 @@ static int ath6kl_htc_pipe_conn_service(struct htc_target *target,
 		}
 
 		ath6kl_dbg(ATH6KL_DBG_TRC,
-			   "%s: service 0x%X conn resp: "
-			   "status: %d ep: %d\n", __func__,
-			   resp_msg->svc_id, resp_msg->status,
+			   "%s: service 0x%X conn resp: status: %d ep: %d\n",
+			   __func__, resp_msg->svc_id, resp_msg->status,
 			   resp_msg->eid);
 
 		conn_resp->resp_code = resp_msg->status;
 		/* check response status */
 		if (resp_msg->status != HTC_SERVICE_SUCCESS) {
 			ath6kl_dbg(ATH6KL_DBG_HTC,
-				   " Target failed service 0x%X connect"
-				   " request (status:%d)\n",
+				   "Target failed service 0x%X connect request (status:%d)\n",
 				   resp_msg->svc_id, resp_msg->status);
 			status = -EINVAL;
 			goto free_packet;
@@ -1459,6 +1452,7 @@ static void *ath6kl_htc_pipe_create(struct ath6kl *ar)
 		goto fail_htc_create;
 	}
 
+	/* FIXME: unnecessary memset() */
 	memset(target, 0, sizeof(struct htc_target));
 
 	spin_lock_init(&target->htc_lock);
@@ -1470,10 +1464,12 @@ static void *ath6kl_htc_pipe_create(struct ath6kl *ar)
 	for (i = 0; i < HTC_PACKET_CONTAINER_ALLOCATION; i++) {
 		packet = kzalloc(sizeof(struct htc_packet), GFP_KERNEL);
 		if (packet != NULL) {
+			/* FIXME: unnecessary memset() */
 			memset(packet, 0, sizeof(struct htc_packet));
 			free_htc_packet_container(target, packet);
 		}
 	}
+
 	/* setup HIF layer callbacks */
 	memset(&htc_callbacks, 0, sizeof(struct ath6kl_hif_pipe_callbacks));
 	htc_callbacks.rx_completion = htc_rx_completion;
@@ -1520,6 +1516,7 @@ static void ath6kl_htc_pipe_cleanup(struct htc_target *target)
 	}
 
 	kfree(target->dev);
+
 	/* kfree our instance */
 	kfree(target);
 }
@@ -1540,6 +1537,7 @@ static int ath6kl_htc_pipe_start(struct htc_target *target)
 	}
 
 	skb = packet->skb;
+
 	/* assemble setup complete message */
 	setup = (struct htc_setup_comp_ext_msg *) skb_put(skb,
 							  sizeof(*setup));
@@ -1603,10 +1601,10 @@ static int ath6kl_htc_pipe_tx(struct htc_target *target,
 
 static int ath6kl_htc_pipe_wait_target(struct htc_target *target)
 {
-	int status = 0;
 	struct htc_ready_ext_msg *ready_msg;
 	struct htc_service_connect_req connect;
 	struct htc_service_connect_resp resp;
+	int status = 0;
 
 	status = htc_wait_recv_ctrl_message(target);
 
@@ -1614,8 +1612,7 @@ static int ath6kl_htc_pipe_wait_target(struct htc_target *target)
 		return status;
 
 	if (target->ctrl_response_len < (sizeof(struct htc_ready_ext_msg))) {
-		ath6kl_dbg(ATH6KL_DBG_HTC,
-			   "invalid htc ready msg len:%d!\n",
+		ath6kl_dbg(ATH6KL_DBG_HTC, "invalid htc ready msg len:%d!\n",
 			   target->ctrl_response_len);
 		return -ECOMM;
 	}
@@ -1623,8 +1620,7 @@ static int ath6kl_htc_pipe_wait_target(struct htc_target *target)
 	ready_msg = (struct htc_ready_ext_msg *) target->ctrl_response_buf;
 
 	if (ready_msg->ver2_0_info.msg_id != cpu_to_le16(HTC_MSG_READY_ID)) {
-		ath6kl_dbg(ATH6KL_DBG_HTC,
-			   "invalid htc ready msg : 0x%X !\n",
+		ath6kl_dbg(ATH6KL_DBG_HTC, "invalid htc ready msg : 0x%X !\n",
 			   ready_msg->ver2_0_info.msg_id);
 		return -ECOMM;
 	}
@@ -1673,10 +1669,9 @@ static void ath6kl_htc_pipe_flush_txep(struct htc_target *target,
 static int ath6kl_htc_pipe_add_rxbuf_multiple(struct htc_target *target,
 					      struct list_head *pkt_queue)
 {
+	struct htc_packet *packet, *tmp_pkt, *first;
 	struct htc_endpoint *ep;
-	struct htc_packet *first;
 	int status = 0;
-	struct htc_packet *packet, *tmp_pkt;
 
 	if (list_empty(pkt_queue))
 		return -EINVAL;
@@ -1692,10 +1687,9 @@ static int ath6kl_htc_pipe_add_rxbuf_multiple(struct htc_target *target,
 		return -EINVAL;
 	}
 
-	ath6kl_dbg(ATH6KL_DBG_HTC,
-		   "%s: epid: %d, cnt:%d, len: %d\n",
-		   __func__, first->endpoint,
-		   get_queue_depth(pkt_queue), first->buf_len);
+	ath6kl_dbg(ATH6KL_DBG_HTC, "%s: epid: %d, cnt:%d, len: %d\n",
+		   __func__, first->endpoint, get_queue_depth(pkt_queue),
+		   first->buf_len);
 
 	ep = &target->endpoint[first->endpoint];
 
