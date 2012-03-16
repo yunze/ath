@@ -508,33 +508,6 @@ static enum htc_send_queue_result htc_try_send(struct htc_target *target,
 	return HTC_SEND_QUEUE_OK;
 }
 
-static void htc_tx_resource_available(struct htc_target *target, u8 pipeid)
-{
-	struct htc_endpoint *ep = NULL;
-	int i;
-
-	for (i = 0; i < ENDPOINT_MAX; i++) {
-		ep = &target->endpoint[i];
-		if (ep->svc_id != 0) {
-			if (ep->pipe.pipeid_ul == pipeid)
-				break;
-		}
-	}
-
-	if (i >= ENDPOINT_MAX) {
-		ath6kl_dbg(ATH6KL_DBG_HTC,
-			   "Invalid pipe indicated for TX resource avail : %d!\n",
-			   pipeid);
-		return;
-	}
-
-	ath6kl_dbg(ATH6KL_DBG_HTC,
-		   "%s: hIF indicated more resources for pipe:%d\n",
-		   __func__, pipeid);
-
-	htc_try_send(target, ep, NULL);
-}
-
 /* htc control packet manipulation */
 static void destroy_htc_txctrl_packet(struct htc_packet *packet)
 {
