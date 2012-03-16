@@ -239,16 +239,16 @@ static void ath6kl_usb_free_pipe_resources(struct ath6kl_usb_pipe *pipe)
 
 }
 
-static void ath6kl_usb_cleanup_pipe_resources(struct ath6kl_usb *device)
+static void ath6kl_usb_cleanup_pipe_resources(struct ath6kl_usb *ar_usb)
 {
 	int i;
 
 	for (i = 0; i < ATH6KL_USB_PIPE_MAX; i++)
-		ath6kl_usb_free_pipe_resources(&device->pipes[i]);
+		ath6kl_usb_free_pipe_resources(&ar_usb->pipes[i]);
 
 }
 
-static u8 ath6kl_usb_get_logical_pipe_num(struct ath6kl_usb *device,
+static u8 ath6kl_usb_get_logical_pipe_num(struct ath6kl_usb *ar_usb,
 					  u8 ep_address, int *urb_count)
 {
 	u8 pipe_num = ATH6KL_USB_PIPE_INVALID;
@@ -294,9 +294,9 @@ static u8 ath6kl_usb_get_logical_pipe_num(struct ath6kl_usb *device,
 	return pipe_num;
 }
 
-static int ath6kl_usb_setup_pipe_resources(struct ath6kl_usb *device)
+static int ath6kl_usb_setup_pipe_resources(struct ath6kl_usb *ar_usb)
 {
-	struct usb_interface *interface = device->interface;
+	struct usb_interface *interface = ar_usb->interface;
 	struct usb_host_interface *iface_desc = interface->cur_altsetting;
 	struct usb_endpoint_descriptor *endpoint;
 	struct ath6kl_usb_pipe *pipe;
@@ -337,19 +337,19 @@ static int ath6kl_usb_setup_pipe_resources(struct ath6kl_usb *device)
 		urbcount = 0;
 
 		pipe_num =
-		    ath6kl_usb_get_logical_pipe_num(device,
+		    ath6kl_usb_get_logical_pipe_num(ar_usb,
 						    endpoint->bEndpointAddress,
 						    &urbcount);
 		if (pipe_num == ATH6KL_USB_PIPE_INVALID)
 			continue;
 
-		pipe = &device->pipes[pipe_num];
+		pipe = &ar_usb->pipes[pipe_num];
 		if (pipe->ar_usb != NULL) {
 			/* hmmm..pipe was already setup */
 			continue;
 		}
 
-		pipe->ar_usb = device;
+		pipe->ar_usb = ar_usb;
 		pipe->logical_pipe_num = pipe_num;
 		pipe->ep_address = endpoint->bEndpointAddress;
 		pipe->max_packet_size = le16_to_cpu(endpoint->wMaxPacketSize);
@@ -357,32 +357,32 @@ static int ath6kl_usb_setup_pipe_resources(struct ath6kl_usb *device)
 		if (ATH6KL_USB_IS_BULK_EP(endpoint->bmAttributes)) {
 			if (ATH6KL_USB_IS_DIR_IN(pipe->ep_address)) {
 				pipe->usb_pipe_handle =
-				    usb_rcvbulkpipe(device->udev,
+				    usb_rcvbulkpipe(ar_usb->udev,
 						    pipe->ep_address);
 			} else {
 				pipe->usb_pipe_handle =
-				    usb_sndbulkpipe(device->udev,
+				    usb_sndbulkpipe(ar_usb->udev,
 						    pipe->ep_address);
 			}
 		} else if (ATH6KL_USB_IS_INT_EP(endpoint->bmAttributes)) {
 			if (ATH6KL_USB_IS_DIR_IN(pipe->ep_address)) {
 				pipe->usb_pipe_handle =
-				    usb_rcvintpipe(device->udev,
+				    usb_rcvintpipe(ar_usb->udev,
 						   pipe->ep_address);
 			} else {
 				pipe->usb_pipe_handle =
-				    usb_sndintpipe(device->udev,
+				    usb_sndintpipe(ar_usb->udev,
 						   pipe->ep_address);
 			}
 		} else if (ATH6KL_USB_IS_ISOC_EP(endpoint->bmAttributes)) {
 			/* TODO for ISO */
 			if (ATH6KL_USB_IS_DIR_IN(pipe->ep_address)) {
 				pipe->usb_pipe_handle =
-				    usb_rcvisocpipe(device->udev,
+				    usb_rcvisocpipe(ar_usb->udev,
 						    pipe->ep_address);
 			} else {
 				pipe->usb_pipe_handle =
-				    usb_sndisocpipe(device->udev,
+				    usb_sndisocpipe(ar_usb->udev,
 						    pipe->ep_address);
 			}
 		}
@@ -454,13 +454,13 @@ err_cleanup_urb:
 	return;
 }
 
-static void ath6kl_usb_flush_all(struct ath6kl_usb *device)
+static void ath6kl_usb_flush_all(struct ath6kl_usb *ar_usb)
 {
 	int i;
 
 	for (i = 0; i < ATH6KL_USB_PIPE_MAX; i++) {
-		if (device->pipes[i].ar_usb != NULL)
-			usb_kill_anchored_urbs(&device->pipes[i].urb_submitted);
+		if (ar_usb->pipes[i].ar_usb != NULL)
+			usb_kill_anchored_urbs(&ar_usb->pipes[i].urb_submitted);
 	}
 
 	/*
@@ -470,20 +470,20 @@ static void ath6kl_usb_flush_all(struct ath6kl_usb *device)
 	flush_scheduled_work();
 }
 
-static void ath6kl_usb_start_recv_pipes(struct ath6kl_usb *device)
+static void ath6kl_usb_start_recv_pipes(struct ath6kl_usb *ar_usb)
 {
 	/*
 	 * note: control pipe is no longer used
-	 * device->pipes[ATH6KL_USB_PIPE_RX_CTRL].urb_cnt_thresh =
-	 *      device->pipes[ATH6KL_USB_PIPE_RX_CTRL].urb_alloc/2;
-	 * ath6kl_usb_post_recv_transfers(&device->
+	 * ar_usb->pipes[ATH6KL_USB_PIPE_RX_CTRL].urb_cnt_thresh =
+	 *      ar_usb->pipes[ATH6KL_USB_PIPE_RX_CTRL].urb_alloc/2;
+	 * ath6kl_usb_post_recv_transfers(&ar_usb->
 	 *		pipes[ATH6KL_USB_PIPE_RX_CTRL],
 	 *		ATH6KL_USB_RX_BUFFER_SIZE);
 	 */
 
-	device->pipes[ATH6KL_USB_PIPE_RX_DATA].urb_cnt_thresh =
-	    device->pipes[ATH6KL_USB_PIPE_RX_DATA].urb_alloc / 2;
-	ath6kl_usb_post_recv_transfers(&device->pipes[ATH6KL_USB_PIPE_RX_DATA],
+	ar_usb->pipes[ATH6KL_USB_PIPE_RX_DATA].urb_cnt_thresh =
+	    ar_usb->pipes[ATH6KL_USB_PIPE_RX_DATA].urb_alloc / 2;
+	ath6kl_usb_post_recv_transfers(&ar_usb->pipes[ATH6KL_USB_PIPE_RX_DATA],
 				       ATH6KL_USB_RX_BUFFER_SIZE);
 }
 
@@ -576,20 +576,20 @@ static void ath6kl_usb_io_comp_work(struct work_struct *work)
 	struct ath6kl_usb_pipe *pipe = container_of(work,
 						    struct ath6kl_usb_pipe,
 						    io_complete_work);
-	struct ath6kl_usb *device;
+	struct ath6kl_usb *ar_usb;
 	struct sk_buff *skb;
 
-	device = pipe->ar_usb;
+	ar_usb = pipe->ar_usb;
 
 	while ((skb = skb_dequeue(&pipe->io_comp_queue))) {
 		if (pipe->flags & ATH6KL_USB_PIPE_FLAG_TX) {
 			ath6kl_dbg(ATH6KL_DBG_USB_BULK,
 				   "ath6kl usb xmit callback buf:0x%p\n", skb);
-			ath6kl_core_tx_complete(device->ar, skb);
+			ath6kl_core_tx_complete(ar_usb->ar, skb);
 		} else {
 			ath6kl_dbg(ATH6KL_DBG_USB_BULK,
 				   "ath6kl usb recv callback buf:0x%p\n", skb);
-			ath6kl_core_rx_complete(device->ar, skb,
+			ath6kl_core_rx_complete(ar_usb->ar, skb,
 						pipe->logical_pipe_num);
 		}
 	}
