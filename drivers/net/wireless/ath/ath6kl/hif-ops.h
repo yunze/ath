@@ -150,16 +150,6 @@ static inline void ath6kl_hif_stop(struct ath6kl *ar)
 	ar->hif_ops->stop(ar);
 }
 
-
-static inline void ath6kl_hif_pipe_register_callback(struct ath6kl *ar,
-			void *htc_context,
-			struct ath6kl_hif_pipe_callbacks *callbacks)
-{
-	ath6kl_dbg(ATH6KL_DBG_HIF, "hif pipe register callback\n");
-
-	ar->hif_ops->pipe_register_callback(ar, htc_context, callbacks);
-}
-
 static inline int ath6kl_hif_pipe_send(struct ath6kl *ar,
 				       u8 pipe, struct sk_buff *hdr_buf,
 				       struct sk_buff *buf)

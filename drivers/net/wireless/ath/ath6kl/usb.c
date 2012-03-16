@@ -65,7 +65,6 @@ struct ath6kl_usb {
 	/* protects pipe->urb_list_head and  pipe->urb_cnt */
 	spinlock_t cs_lock;
 
-	struct ath6kl_hif_pipe_callbacks htc_callbacks;
 	struct usb_device *udev;
 	struct usb_interface *interface;
 	struct ath6kl_usb_pipe pipes[ATH6KL_USB_PIPE_MAX];
@@ -586,14 +585,12 @@ static void ath6kl_usb_io_comp_work(struct work_struct *work)
 		if (pipe->flags & ATH6KL_USB_PIPE_FLAG_TX) {
 			ath6kl_dbg(ATH6KL_DBG_USB_BULK,
 				   "ath6kl usb xmit callback buf:0x%p\n", skb);
-			device->htc_callbacks.
-				tx_completion(device->ar->htc_target, skb);
+			ath6kl_core_tx_complete(device->ar, skb);
 		} else {
 			ath6kl_dbg(ATH6KL_DBG_USB_BULK,
 				   "ath6kl usb recv callback buf:0x%p\n", skb);
-			device->htc_callbacks.
-				rx_completion(device->ar->htc_target, skb,
-					      pipe->logical_pipe_num);
+			ath6kl_core_rx_complete(device->ar, skb,
+						pipe->logical_pipe_num);
 		}
 	}
 }
@@ -829,17 +826,6 @@ static int ath6kl_usb_map_service_pipe(struct ath6kl *ar, u16 svc_id,
 	return status;
 }
 
-/* FIXME: unused? */
-static void ath6kl_usb_register_callback(struct ath6kl *ar,
-					 void *unused,
-					 struct ath6kl_hif_pipe_callbacks *cbs)
-{
-	struct ath6kl_usb *device = ath6kl_usb_priv(ar);
-
-	memcpy(&device->htc_callbacks, cbs,
-	       sizeof(struct ath6kl_hif_pipe_callbacks));
-}
-
 static u16 ath6kl_usb_get_free_queue_number(struct ath6kl *ar, u8 pipe_id)
 {
 	struct ath6kl_usb *device = ath6kl_usb_priv(ar);
@@ -852,9 +838,6 @@ static void hif_detach_htc(struct ath6kl *ar)
 	struct ath6kl_usb *device = ath6kl_usb_priv(ar);
 
 	ath6kl_usb_flush_all(device);
-
-	memset(&device->htc_callbacks, 0,
-	       sizeof(struct ath6kl_hif_pipe_callbacks));
 }
 
 static int ath6kl_usb_submit_ctrl_out(struct ath6kl_usb *ar_usb,
@@ -1062,7 +1045,6 @@ static const struct ath6kl_hif_ops ath6kl_usb_ops = {
 	.power_on = ath6kl_usb_power_on,
 	.power_off = ath6kl_usb_power_off,
 	.stop = ath6kl_usb_stop,
-	.pipe_register_callback = ath6kl_usb_register_callback,
 	.pipe_send = ath6kl_usb_send,
 	.pipe_get_default = ath6kl_usb_get_default_pipe,
 	.pipe_map_service = ath6kl_usb_map_service_pipe,

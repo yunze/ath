@@ -96,4 +96,18 @@ static inline int ath6kl_htc_credit_setup(struct htc_target *target,
 	return target->dev->ar->htc_ops->credit_setup(target, info);
 }
 
+static inline void ath6kl_htc_tx_complete(struct ath6kl *ar,
+					  struct sk_buff *skb)
+{
+	ar->htc_ops->tx_complete(ar, skb);
+}
+
+
+static inline void ath6kl_htc_rx_complete(struct ath6kl *ar,
+					  struct sk_buff *skb, u8 pipe)
+{
+	ar->htc_ops->rx_complete(ar, skb, pipe);
+}
+
+
 #endif

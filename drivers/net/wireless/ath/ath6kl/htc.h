@@ -568,6 +568,8 @@ struct ath6kl_htc_ops {
 				  struct list_head *pktq);
 	int (*credit_setup)(struct htc_target *target,
 			    struct ath6kl_htc_credit_info *cred_info);
+	int (*tx_complete)(struct ath6kl *ar, struct sk_buff *skb);
+	int (*rx_complete)(struct ath6kl *ar, struct sk_buff *skb, u8 pipe);
 };
 
 struct ath6kl_device;

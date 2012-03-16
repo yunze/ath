@@ -828,6 +828,9 @@ int ath6kl_init_hw_params(struct ath6kl *ar);
 
 void ath6kl_check_wow_status(struct ath6kl *ar);
 
+void ath6kl_core_tx_complete(struct ath6kl *ar, struct sk_buff *skb);
+void ath6kl_core_rx_complete(struct ath6kl *ar, struct sk_buff *skb, u8 pipe);
+
 struct ath6kl *ath6kl_core_create(struct device *dev);
 int ath6kl_core_init(struct ath6kl *ar, enum ath6kl_htc_type htc_type);
 void ath6kl_core_cleanup(struct ath6kl *ar);

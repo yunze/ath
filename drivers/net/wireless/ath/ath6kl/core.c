@@ -40,6 +40,16 @@ module_param(uart_debug, uint, 0644);
 module_param(ath6kl_p2p, uint, 0644);
 module_param(testmode, uint, 0644);
 
+void ath6kl_core_tx_complete(struct ath6kl *ar, struct sk_buff *skb)
+{
+	ath6kl_htc_tx_complete(ar, skb);
+}
+
+void ath6kl_core_rx_complete(struct ath6kl *ar, struct sk_buff *skb, u8 pipe)
+{
+	ath6kl_htc_rx_complete(ar, skb, pipe);
+}
+
 int ath6kl_core_init(struct ath6kl *ar, enum ath6kl_htc_type htc_type)
 {
 	struct ath6kl_bmi_target_info targ_info;

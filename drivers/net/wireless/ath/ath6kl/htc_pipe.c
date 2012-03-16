@@ -779,8 +779,9 @@ static struct htc_packet *htc_lookup_tx_packet(struct htc_target *target,
 	return found_packet;
 }
 
-static int htc_tx_completion(struct htc_target *target, struct sk_buff *skb)
+static int ath6kl_htc_pipe_tx_complete(struct ath6kl *ar, struct sk_buff *skb)
 {
+	struct htc_target *target = ar->htc_target;
 	struct htc_frame_hdr *htc_hdr;
 	struct htc_endpoint *ep;
 	struct htc_packet *packet;
@@ -989,9 +990,10 @@ static void recv_packet_completion(struct htc_target *target,
 	do_recv_completion(ep, &container);
 }
 
-static int htc_rx_completion(struct htc_target *target,
-			     struct sk_buff *skb, u8 pipeid)
+static int ath6kl_htc_pipe_rx_complete(struct ath6kl *ar, struct sk_buff *skb,
+				       u8 pipeid)
 {
+	struct htc_target *target = ar->htc_target;
 	u8 *netdata, *trailer, hdr_info;
 	struct htc_frame_hdr *htc_hdr;
 	u32 netlen, trailerlen = 0;
@@ -1435,7 +1437,6 @@ free_packet:
 static void *ath6kl_htc_pipe_create(struct ath6kl *ar)
 {
 	int status = 0;
-	struct ath6kl_hif_pipe_callbacks htc_callbacks;
 	struct htc_endpoint *ep = NULL;
 	struct htc_target *target = NULL;
 	struct htc_packet *packet;
@@ -1461,12 +1462,6 @@ static void *ath6kl_htc_pipe_create(struct ath6kl *ar)
 			free_htc_packet_container(target, packet);
 	}
 
-	/* setup HIF layer callbacks */
-	memset(&htc_callbacks, 0, sizeof(struct ath6kl_hif_pipe_callbacks));
-	htc_callbacks.rx_completion = htc_rx_completion;
-	htc_callbacks.tx_completion = htc_tx_completion;
-	htc_callbacks.tx_resource_available = htc_tx_resource_available;
-
 	target->dev = kzalloc(sizeof(*target->dev), GFP_KERNEL);
 	if (!target->dev) {
 		ath6kl_err("unable to allocate memory\n");
@@ -1479,7 +1474,6 @@ static void *ath6kl_htc_pipe_create(struct ath6kl *ar)
 	/* Get HIF default pipe for HTC message exchange */
 	ep = &target->endpoint[ENDPOINT_0];
 
-	ath6kl_hif_pipe_register_callback(ar, target, &htc_callbacks);
 	ath6kl_hif_pipe_get_default(ar, &ep->pipe.pipeid_ul,
 				    &ep->pipe.pipeid_dl);
 
@@ -1736,6 +1730,8 @@ static const struct ath6kl_htc_ops ath6kl_htc_pipe_ops = {
 	.get_rxbuf_num = ath6kl_htc_pipe_get_rxbuf_num,
 	.add_rxbuf_multiple = ath6kl_htc_pipe_add_rxbuf_multiple,
 	.credit_setup = ath6kl_htc_pipe_credit_setup,
+	.tx_complete = ath6kl_htc_pipe_tx_complete,
+	.rx_complete = ath6kl_htc_pipe_rx_complete,
 };
 
 void ath6kl_htc_pipe_attach(struct ath6kl *ar)
