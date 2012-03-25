@@ -44,11 +44,13 @@ void ath6kl_core_tx_complete(struct ath6kl *ar, struct sk_buff *skb)
 {
 	ath6kl_htc_tx_complete(ar, skb);
 }
+EXPORT_SYMBOL(ath6kl_core_tx_complete);
 
 void ath6kl_core_rx_complete(struct ath6kl *ar, struct sk_buff *skb, u8 pipe)
 {
 	ath6kl_htc_rx_complete(ar, skb, pipe);
 }
+EXPORT_SYMBOL(ath6kl_core_rx_complete);
 
 int ath6kl_core_init(struct ath6kl *ar, enum ath6kl_htc_type htc_type)
 {

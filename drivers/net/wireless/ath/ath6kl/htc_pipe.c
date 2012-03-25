@@ -909,7 +909,7 @@ static int htc_process_trailer(struct htc_target *target, u8 *buffer,
 
 			report = (struct htc_credit_report *) record_buf;
 			htc_process_credit_report(target, report,
-						  record->len / sizeof(report),
+						  record->len / sizeof(*report),
 						  from_ep);
 			break;
 		default:
