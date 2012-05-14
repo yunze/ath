@@ -3297,7 +3297,6 @@ struct ath6kl *ath6kl_core_alloc(struct device *dev)
 int ath6kl_register_ieee80211_hw(struct ath6kl *ar)
 {
 	struct wiphy *wiphy = ar->wiphy;
-	bool band_2gig = false, band_5gig = false, ht = false;
 	int ret;
 
 	wiphy->mgmt_stypes = ath6kl_mgmt_stypes;
@@ -3318,39 +3317,8 @@ int ath6kl_register_ieee80211_hw(struct ath6kl *ar)
 	/* max num of ssids that can be probed during scanning */
 	wiphy->max_scan_ssids = MAX_PROBED_SSID_INDEX;
 	wiphy->max_scan_ie_len = 1000; /* FIX: what is correct limit? */
-	switch (ar->hw.cap) {
-	case WMI_11AN_CAP:
-		ht = true;
-	case WMI_11A_CAP:
-		band_5gig = true;
-		break;
-	case WMI_11GN_CAP:
-		ht = true;
-	case WMI_11G_CAP:
-		band_2gig = true;
-		break;
-	case WMI_11AGN_CAP:
-		ht = true;
-	case WMI_11AG_CAP:
-		band_2gig = true;
-		band_5gig = true;
-		break;
-	default:
-		ath6kl_err("invalid phy capability!\n");
-		return -EINVAL;
-	}
-
-	if (!ht) {
-		ath6kl_band_2ghz.ht_cap.cap = 0;
-		ath6kl_band_2ghz.ht_cap.ht_supported = false;
-		ath6kl_band_5ghz.ht_cap.cap = 0;
-		ath6kl_band_5ghz.ht_cap.ht_supported = false;
-	}
-	if (band_2gig)
-		wiphy->bands[IEEE80211_BAND_2GHZ] = &ath6kl_band_2ghz;
-	if (band_5gig)
-		wiphy->bands[IEEE80211_BAND_5GHZ] = &ath6kl_band_5ghz;
-
+	wiphy->bands[IEEE80211_BAND_2GHZ] = &ath6kl_band_2ghz;
+	wiphy->bands[IEEE80211_BAND_5GHZ] = &ath6kl_band_5ghz;
 	wiphy->signal_type = CFG80211_SIGNAL_TYPE_MBM;
 
 	wiphy->cipher_suites = cipher_suites;

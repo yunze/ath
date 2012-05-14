@@ -636,7 +636,6 @@ struct ath6kl {
 		u32 reserved_ram_size;
 		u32 board_addr;
 		u32 testscript_addr;
-		enum wmi_phy_cap cap;
 
 		struct ath6kl_hw_fw {
 			const char *dir;
@@ -767,8 +766,7 @@ void aggr_reset_state(struct aggr_info_conn *aggr_conn);
 struct ath6kl_sta *ath6kl_find_sta(struct ath6kl_vif *vif, u8 * node_addr);
 struct ath6kl_sta *ath6kl_find_sta_by_aid(struct ath6kl *ar, u8 aid);
 
-void ath6kl_ready_event(void *devt, u8 *datap, u32 sw_ver, u32 abi_ver,
-			enum wmi_phy_cap cap);
+void ath6kl_ready_event(void *devt, u8 * datap, u32 sw_ver, u32 abi_ver);
 int ath6kl_control_tx(void *devt, struct sk_buff *skb,
 		      enum htc_endpoint_id eid);
 void ath6kl_connect_event(struct ath6kl_vif *vif, u16 channel,
