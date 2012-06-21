@@ -253,6 +253,7 @@ static const struct nla_policy
 nl80211_match_policy[NL80211_SCHED_SCAN_MATCH_ATTR_MAX + 1] = {
 	[NL80211_SCHED_SCAN_MATCH_ATTR_SSID] = { .type = NLA_BINARY,
 						 .len = IEEE80211_MAX_SSID_LEN },
+	[NL80211_SCHED_SCAN_MATCH_ATTR_RSSI] = { .type = NLA_U32 },
 };
 
 /* ifidx get helper */
@@ -3898,7 +3899,7 @@ static int nl80211_start_sched_scan(struct sk_buff *skb,
 		nla_for_each_nested(attr,
 				    info->attrs[NL80211_ATTR_SCHED_SCAN_MATCH],
 				    tmp) {
-			struct nlattr *ssid;
+			struct nlattr *ssid, *rssi;
 
 			nla_parse(tb, NL80211_SCHED_SCAN_MATCH_ATTR_MAX,
 				  nla_data(attr), nla_len(attr),
@@ -3914,6 +3915,12 @@ static int nl80211_start_sched_scan(struct sk_buff *skb,
 				request->match_sets[i].ssid.ssid_len =
 					nla_len(ssid);
 			}
+			rssi = tb[NL80211_SCHED_SCAN_MATCH_ATTR_RSSI];
+			if (rssi)
+				request->rssi_thold = nla_get_u32(rssi);
+			else
+				request->rssi_thold =
+						   NL80211_SCAN_RSSI_THOLD_OFF;
 			i++;
 		}
 	}
