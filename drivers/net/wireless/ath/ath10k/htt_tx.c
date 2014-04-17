@@ -143,10 +143,19 @@ static void ath10k_htt_tx_cleanup_pending(struct ath10k_htt *htt)
 
 void ath10k_htt_tx_detach(struct ath10k_htt *htt)
 {
+	struct dma_pool *tx_pool_tmp;
+
 	ath10k_htt_tx_cleanup_pending(htt);
+
+	spin_lock_bh(&htt->tx_lock);
 	kfree(htt->pending_tx);
 	kfree(htt->used_msdu_ids);
-	dma_pool_destroy(htt->tx_pool);
+	tx_pool_tmp = htt->tx_pool;
+	htt->tx_pool = NULL;
+	spin_unlock_bh(&htt->tx_lock);
+
+	dma_pool_destroy(tx_pool_tmp);
+
 	return;
 }
 
@@ -403,6 +412,13 @@ int ath10k_htt_tx(struct ath10k_htt *htt, struct sk_buff *msdu)
 		goto err;
 
 	spin_lock_bh(&htt->tx_lock);
+
+	/* Check if we are detached... */
+	if (! htt->tx_pool) {
+		spin_unlock_bh(&htt->tx_lock);
+		goto err_tx_dec;
+	}
+
 	res = ath10k_htt_tx_alloc_msdu_id(htt);
 	if (res < 0) {
 		spin_unlock_bh(&htt->tx_lock);
