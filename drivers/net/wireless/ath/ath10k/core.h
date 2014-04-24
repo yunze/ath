@@ -199,9 +199,14 @@ struct ath10k_dfs_stats {
 #define ATH10K_MAX_NUM_PEER_IDS (1 << 11) /* htt rx_desc limit */
 
 struct ath10k_peer {
+	/* protected by conf_mutex + data_lock */
 	struct list_head list;
+
+	/* protected by conf_mutex */
 	int vdev_id;
 	u8 addr[ETH_ALEN];
+
+	/* protected by data_lock */
 	DECLARE_BITMAP(peer_ids, ATH10K_MAX_NUM_PEER_IDS);
 	struct ieee80211_key_conf *keys[WMI_MAX_KEY_INDEX + 1];
 };

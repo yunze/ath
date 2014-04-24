@@ -100,12 +100,12 @@ exit:
 		wake_up(&htt->empty_tx_wq);
 }
 
+/* hold conf_mutex for simple iteration, or conf_mutex+data_lock for
+ * modifications */
 struct ath10k_peer *ath10k_peer_find(struct ath10k *ar, int vdev_id,
 				     const u8 *addr)
 {
 	struct ath10k_peer *peer;
-
-	lockdep_assert_held(&ar->data_lock);
 
 	list_for_each_entry(peer, &ar->peers, list) {
 		if (peer->vdev_id != vdev_id)
@@ -139,10 +139,14 @@ static int ath10k_wait_for_peer_common(struct ath10k *ar, int vdev_id,
 	int ret;
 
 	ret = wait_event_timeout(ar->peer_mapping_wq, ({
-			bool mapped;
+			struct ath10k_peer *peer;
+			bool mapped = false;
 
 			spin_lock_bh(&ar->data_lock);
-			mapped = !!ath10k_peer_find(ar, vdev_id, addr);
+			peer = ath10k_peer_find(ar, vdev_id, addr);
+			if (peer)
+				mapped = !bitmap_empty(peer->peer_ids,
+						       ATH10K_MAX_NUM_PEER_IDS);
 			spin_unlock_bh(&ar->data_lock);
 
 			mapped == expect_mapped;
@@ -173,20 +177,16 @@ void ath10k_peer_map_event(struct ath10k_htt *htt,
 	spin_lock_bh(&ar->data_lock);
 	peer = ath10k_peer_find(ar, ev->vdev_id, ev->addr);
 	if (!peer) {
-		peer = kzalloc(sizeof(*peer), GFP_ATOMIC);
-		if (!peer)
-			goto exit;
-
-		peer->vdev_id = ev->vdev_id;
-		memcpy(peer->addr, ev->addr, ETH_ALEN);
-		list_add(&peer->list, &ar->peers);
-		wake_up(&ar->peer_mapping_wq);
+		ath10k_warn("failed to map peer %pM on vdev %i: no such entry\n",
+			    ev->addr, ev->vdev_id);
+		goto exit;
 	}
 
 	ath10k_dbg(ATH10K_DBG_HTT, "htt peer map vdev %d peer %pM id %d\n",
 		   ev->vdev_id, ev->addr, ev->peer_id);
 
 	set_bit(ev->peer_id, peer->peer_ids);
+	wake_up(&ar->peer_mapping_wq);
 exit:
 	spin_unlock_bh(&ar->data_lock);
 }
@@ -210,11 +210,8 @@ void ath10k_peer_unmap_event(struct ath10k_htt *htt,
 
 	clear_bit(ev->peer_id, peer->peer_ids);
 
-	if (bitmap_empty(peer->peer_ids, ATH10K_MAX_NUM_PEER_IDS)) {
-		list_del(&peer->list);
-		kfree(peer);
+	if (bitmap_empty(peer->peer_ids, ATH10K_MAX_NUM_PEER_IDS))
 		wake_up(&ar->peer_mapping_wq);
-	}
 
 exit:
 	spin_unlock_bh(&ar->data_lock);

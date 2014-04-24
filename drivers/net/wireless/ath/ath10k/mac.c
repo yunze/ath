@@ -318,28 +318,61 @@ static u8 ath10k_parse_mpdudensity(u8 mpdudensity)
 
 static int ath10k_peer_create(struct ath10k *ar, u32 vdev_id, const u8 *addr)
 {
+	struct ath10k_peer *peer;
 	int ret;
 
 	lockdep_assert_held(&ar->conf_mutex);
+
+	peer = ath10k_peer_find(ar, vdev_id, addr);
+	if (peer) {
+		ath10k_warn("peer %pM on vdev %i already exists\n",
+			    addr, vdev_id);
+		return -EINVAL;
+	}
+
+	peer = kzalloc(sizeof(*peer), GFP_KERNEL);
+	if (!peer) {
+		ath10k_warn("failed to allocate peer %pM on vdev %i: not enough memory\n",
+			    addr, vdev_id);
+		return -ENOMEM;
+	}
+
+	peer->vdev_id = vdev_id;
+	memcpy(peer->addr, addr, ETH_ALEN);
+
+	spin_lock_bh(&ar->data_lock);
+	list_add(&peer->list, &ar->peers);
+	spin_unlock_bh(&ar->data_lock);
 
 	ret = ath10k_wmi_peer_create(ar, vdev_id, addr);
 	if (ret) {
 		ath10k_warn("failed to create wmi peer %pM on vdev %i: %i\n",
 			    addr, vdev_id, ret);
-		return ret;
+		goto err_free;
 	}
 
 	ret = ath10k_wait_for_peer_created(ar, vdev_id, addr);
 	if (ret) {
 		ath10k_warn("failed to wait for created wmi peer %pM on vdev %i: %i\n",
 			    addr, vdev_id, ret);
-		return ret;
+		goto err_free;
 	}
 	spin_lock_bh(&ar->data_lock);
 	ar->num_peers++;
 	spin_unlock_bh(&ar->data_lock);
 
 	return 0;
+
+err_free:
+	spin_lock_bh(&ar->data_lock);
+	list_del(&peer->list);
+	/* very unlikely, but check anyway */
+	if (!bitmap_empty(peer->peer_ids, ATH10K_MAX_NUM_PEER_IDS))
+		ath10k_warn("removing peer %pM on vdev %i still being mapped in firmware\n",
+			    addr, vdev_id);
+	spin_unlock_bh(&ar->data_lock);
+	kfree(peer);
+	return ret;
 }
 
 static int ath10k_mac_set_kickout(struct ath10k_vif *arvif)
@@ -416,21 +449,45 @@ static int ath10k_mac_set_frag(struct ath10k_vif *arvif, u32 value)
 
 static int ath10k_peer_delete(struct ath10k *ar, u32 vdev_id, const u8 *addr)
 {
+	struct ath10k_peer *peer;
 	int ret;
 
 	lockdep_assert_held(&ar->conf_mutex);
 
+	peer = ath10k_peer_find(ar, vdev_id, addr);
+	if (!peer) {
+		ath10k_warn("failed to lookup peer %pM on vdev %i\n",
+			    addr, vdev_id);
+		return -ENOENT;
+	}
+
 	ret = ath10k_wmi_peer_delete(ar, vdev_id, addr);
-	if (ret)
-		return ret;
+	if (ret) {
+		ath10k_warn("failed to request wmi peer %pM on vdev %i removal: %d\n",
+			    addr, vdev_id, ret);
+		goto out;
+	}
 
 	ret = ath10k_wait_for_peer_deleted(ar, vdev_id, addr);
-	if (ret)
-		return ret;
+	if (ret) {
+		ath10k_warn("failed to wait for wmi peer %pM on vdev %i removal: %d\n",
+			    addr, vdev_id, ret);
+		goto out;
+	}
 
 	spin_lock_bh(&ar->data_lock);
 	ar->num_peers--;
 	spin_unlock_bh(&ar->data_lock);
+
+out:
+	spin_lock_bh(&ar->data_lock);
+	list_del(&peer->list);
+	if (!bitmap_empty(peer->peer_ids, ATH10K_MAX_NUM_PEER_IDS))
+		ath10k_warn("removing peer %pM on vdev %i still being mapped in firmware\n",
+			    addr, vdev_id);
+	spin_unlock_bh(&ar->data_lock);
+
+	kfree(peer);
 
 	return 0;
 }
