@@ -3817,19 +3817,27 @@ static void ath10k_flush(struct ieee80211_hw *hw, u32 queues, bool drop)
 
 	mutex_lock(&ar->conf_mutex);
 
-	if (ar->state == ATH10K_STATE_WEDGED)
+	if (ar->state == ATH10K_STATE_WEDGED) {
+		ret = -EBUSY;
 		goto skip;
+	}
 
 	ret = wait_event_timeout(ar->htt.empty_tx_wq, ({
-			bool empty;
+			bool htt_empty, wmi_empty;
+			unsigned long flags;
 
 			spin_lock_bh(&ar->htt.tx_lock);
-			empty = (ar->htt.num_pending_tx == 0);
+			htt_empty = (ar->htt.num_pending_tx == 0);
 			spin_unlock_bh(&ar->htt.tx_lock);
+
+			spin_lock_irqsave(&ar->wmi_mgmt_tx_queue.lock, flags);
+			wmi_empty = skb_queue_len(&ar->wmi_mgmt_tx_queue) == 0;
+			spin_unlock_irqrestore(&ar->wmi_mgmt_tx_queue.lock,
+					       flags);
 
 			skip = (ar->state == ATH10K_STATE_WEDGED);
 
-			(empty || skip);
+			((htt_empty && wmi_empty) || skip);
 		}), ATH10K_FLUSH_TIMEOUT_HZ);
 
 	if (ret <= 0 || skip)
@@ -3838,6 +3846,11 @@ static void ath10k_flush(struct ieee80211_hw *hw, u32 queues, bool drop)
 
 skip:
 	mutex_unlock(&ar->conf_mutex);
+
+	/* empty mgmt tx queue doesn't mean mgmt tx is flushed because the last
+	 * frame still may be processed by a worker */
+	if (ret > 0 && !skip)
+		cancel_work_sync(&ar->wmi_mgmt_tx_work);
 }
 
 /* TODO: Implement this function properly
