@@ -2103,9 +2103,67 @@ void ath10k_mgmt_over_wmi_tx_purge(struct ath10k *ar)
 	}
 }
 
+static void ath10k_mgmt_tx_flush(struct ath10k *ar, struct sk_buff *skb)
+{
+	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)skb->data;
+	struct ieee80211_sta *sta;
+	struct ath10k_vif *arvif;
+	u8 *da = ieee80211_get_DA(hdr);
+	u8 vdev_id = ATH10K_SKB_CB(skb)->vdev_id;
+	u32 bcn_intval = 0;
+	unsigned int msecs;
+	int ret;
+
+	lockdep_assert_held(&ar->conf_mutex);
+
+	if (!is_unicast_ether_addr(da))
+		return;
+
+	rcu_read_lock();
+	sta = ieee80211_find_sta_by_ifaddr(ar->hw, da, NULL);
+	rcu_read_unlock();
+
+	/*
+	 * FW Tx queues can be paused only for associated peers. Since this is
+	 * a workaround just assume worst case if station simply entry exists.
+	 */
+	if (!sta)
+		return;
+
+	list_for_each_entry(arvif, &ar->arvifs, list) {
+		if (arvif->vdev_id == vdev_id) {
+			bcn_intval = arvif->beacon_interval;
+			break;
+		}
+	}
+
+	if (!bcn_intval)
+		return;
+
+	/*
+	 * Wait 2 beacon intervals before flushing so stations that are
+	 * asleep but are actually still in range have a chance to see
+	 * updated PVB, wake up and fetch the frame. There's no other way of
+	 * synchronizing other than sleeping because there's no tx completion
+	 * indication event for WMI management tx.
+	 */
+	msecs = 2 * arvif->beacon_interval * 1024 / 1000;
+	ath10k_dbg(ATH10K_DBG_MAC,
+		   "mac flushing peer %pM on vdev %i mgmt tid for unicast mgmt (%d msecs)\n",
+		   da, vdev_id, msecs);
+	msleep(msecs);
+
+	ret = ath10k_wmi_peer_flush(ar, vdev_id, da,
+				    WMI_PEER_TID_MGMT_MASK);
+	if (ret)
+		ath10k_warn("failed to flush peer %pM mgmt tid: %d\n",
+			    da, ret);
+}
+
 void ath10k_mgmt_over_wmi_tx_work(struct work_struct *work)
 {
 	struct ath10k *ar = container_of(work, struct ath10k, wmi_mgmt_tx_work);
+	struct ieee80211_tx_info *info;
 	struct sk_buff *skb;
 	int ret;
 
@@ -2114,12 +2172,50 @@ void ath10k_mgmt_over_wmi_tx_work(struct work_struct *work)
 		if (!skb)
 			break;
 
+		mutex_lock(&ar->conf_mutex);
+
 		ret = ath10k_wmi_mgmt_tx(ar, skb);
 		if (ret) {
 			ath10k_warn("failed to transmit management frame via WMI: %d\n",
 				    ret);
+			mutex_unlock(&ar->conf_mutex);
 			ieee80211_free_txskb(ar->hw, skb);
+			continue;
 		}
+
+		/*
+		 * Each WMI management Tx consumes 1 HTC Tx credit and doesn't
+		 * replenish it until the frame is actually transmitted out of
+		 * firmware's Tx queues.
+		 *
+		 * If associated client was asleep and has gone out of range
+		 * then unicast frames won't be released for FW/HW queues for a
+		 * while (10 seconds per observation). This means that if more
+		 * management frames are queued then HTC Tx credits are drained
+		 * to 0 and no other commands can be submitted including
+		 * beacons and peer removal.
+		 *
+		 * This could in turn result in clients disconnecting due to
+		 * their beacon loss and may trigger spurious sta kickouts
+		 * because wmi peer removal command may never reach firmware
+		 * during disassociation.
+		 *
+		 * This could happen, e.g. when disconnecting client that has
+		 * gone away while asleep.
+		 *
+		 * As a workaround flush unicast management frames that can
+		 * possibly be buffered.
+		 *
+		 * Note: This is a deficiency in design of WMI_MGMT_TX command.
+		 */
+		ath10k_mgmt_tx_flush(ar, skb);
+
+		mutex_unlock(&ar->conf_mutex);
+
+		/* there's no way to get ACK so just assume it's acked */
+		info = IEEE80211_SKB_CB(skb);
+		info->flags |= IEEE80211_TX_STAT_ACK;
+		ieee80211_tx_status(ar->hw, skb);
 	}
 }
 

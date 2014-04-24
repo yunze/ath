@@ -637,7 +637,6 @@ int ath10k_wmi_mgmt_tx(struct ath10k *ar, struct sk_buff *skb)
 	struct wmi_mgmt_tx_cmd *cmd;
 	struct ieee80211_hdr *hdr;
 	struct sk_buff *wmi_skb;
-	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
 	int len;
 	u16 fc;
 
@@ -672,10 +671,6 @@ int ath10k_wmi_mgmt_tx(struct ath10k *ar, struct sk_buff *skb)
 	ret = ath10k_wmi_cmd_send(ar, wmi_skb, ar->wmi.cmd->mgmt_tx_cmdid);
 	if (ret)
 		return ret;
-
-	/* TODO: report tx status to mac80211 - temporary just ACK */
-	info->flags |= IEEE80211_TX_STAT_ACK;
-	ieee80211_tx_status_irqsafe(ar->hw, skb);
 
 	return ret;
 }

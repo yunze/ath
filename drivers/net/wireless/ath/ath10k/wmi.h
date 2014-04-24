@@ -3844,6 +3844,9 @@ struct wmi_peer_delete_cmd {
 	struct wmi_mac_addr peer_macaddr;
 } __packed;
 
+#define WMI_PEER_TID_MGMT 17
+#define WMI_PEER_TID_MGMT_MASK BIT(WMI_PEER_TID_MGMT)
+
 struct wmi_peer_flush_tids_cmd {
 	__le32 vdev_id;
 	struct wmi_mac_addr peer_macaddr;
