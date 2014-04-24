@@ -38,7 +38,7 @@
 
 #define ATH10K_SCAN_ID 0
 #define WMI_READY_TIMEOUT (5 * HZ)
-#define ATH10K_FLUSH_TIMEOUT_HZ (5*HZ)
+#define ATH10K_FLUSH_TIMEOUT_HZ (1*HZ)
 #define ATH10K_NUM_CHANS 38
 
 /* Antenna noise floor */

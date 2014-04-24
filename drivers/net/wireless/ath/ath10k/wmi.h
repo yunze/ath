@@ -3846,6 +3846,7 @@ struct wmi_peer_delete_cmd {
 
 #define WMI_PEER_TID_MGMT 17
 #define WMI_PEER_TID_MGMT_MASK BIT(WMI_PEER_TID_MGMT)
+#define WMI_PEER_TID_ALL_MASK 0xFFFFFFFF
 
 struct wmi_peer_flush_tids_cmd {
 	__le32 vdev_id;

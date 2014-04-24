@@ -3804,25 +3804,31 @@ static int ath10k_set_frag_threshold(struct ieee80211_hw *hw, u32 value)
 	return ret;
 }
 
-static void ath10k_flush(struct ieee80211_hw *hw, u32 queues, bool drop)
+static int ath10k_flush_all_peer_tids(struct ath10k *ar)
 {
-	struct ath10k *ar = hw->priv;
-	bool skip;
+	struct ath10k_peer *peer;
 	int ret;
 
-	/* mac80211 doesn't care if we really xmit queued frames or not
-	 * we'll collect those frames either way if we stop/delete vdevs */
-	if (drop)
-		return;
+	lockdep_assert_held(&ar->conf_mutex);
 
-	mutex_lock(&ar->conf_mutex);
-
-	if (ar->state == ATH10K_STATE_WEDGED) {
-		ret = -EBUSY;
-		goto skip;
+	list_for_each_entry(peer, &ar->peers, list) {
+		ret = ath10k_wmi_peer_flush(ar, peer->vdev_id, peer->addr,
+					    WMI_PEER_TID_ALL_MASK);
+		if (ret) {
+			ath10k_warn("failed to request peer %pM on vdev %i to flush %08x: %d\n",
+				    peer->addr, peer->vdev_id,
+				    WMI_PEER_TID_ALL_MASK, ret);
+			return ret;
+		}
 	}
 
-	ret = wait_event_timeout(ar->htt.empty_tx_wq, ({
+	return 0;
+}
+
+static int ath10k_flush_wait(struct ath10k *ar)
+{
+	bool skip;
+	int ret = wait_event_timeout(ar->htt.empty_tx_wq, ({
 			bool htt_empty, wmi_empty;
 			unsigned long flags;
 
@@ -3840,16 +3846,71 @@ static void ath10k_flush(struct ieee80211_hw *hw, u32 queues, bool drop)
 			((htt_empty && wmi_empty) || skip);
 		}), ATH10K_FLUSH_TIMEOUT_HZ);
 
-	if (ret <= 0 || skip)
-		ath10k_warn("failed to flush transmit queue (skip %i ar-state %i): %i\n",
-			    skip, ar->state, ret);
+	if (ret == 0)
+		ret = -ETIMEDOUT;
+	else if (ret > 0)
+		ret = 0;
 
-skip:
+	if (skip) {
+		ath10k_warn("ignoring flushing result because hardware is wedged\n");
+		ret = -EBUSY;
+	}
+
+	return ret;
+}
+
+static void ath10k_flush(struct ieee80211_hw *hw, u32 queues, bool drop)
+{
+	struct ath10k *ar = hw->priv;
+	int ret;
+
+	mutex_lock(&ar->conf_mutex);
+
+	if (drop) {
+		ath10k_mgmt_over_wmi_tx_purge(ar);
+
+		ret = ath10k_flush_all_peer_tids(ar);
+		if (ret) {
+			ath10k_warn("failed to flush all peer tids: %d\n", ret);
+			goto out;
+		}
+
+		goto out;
+	}
+
+	if (ar->state == ATH10K_STATE_WEDGED) {
+		ath10k_warn("skipping flushing because hardware is wedged\n");
+		ret = -EBUSY;
+		goto out;
+	}
+
+	ret = ath10k_flush_wait(ar);
+	if (ret) {
+		ath10k_dbg(ATH10K_DBG_MAC,
+			   "failed to wait for tx to flush: %d, forcing\n",
+			   ret);
+
+		ath10k_mgmt_over_wmi_tx_purge(ar);
+
+		ret = ath10k_flush_all_peer_tids(ar);
+		if (ret) {
+			ath10k_warn("failed to flush all peer tids: %d\n", ret);
+			goto out;
+		}
+
+		ret = ath10k_flush_wait(ar);
+		if (ret) {
+			ath10k_warn("failed to flush tx: %d\n", ret);
+			goto out;
+		}
+	}
+
+out:
 	mutex_unlock(&ar->conf_mutex);
 
 	/* empty mgmt tx queue doesn't mean mgmt tx is flushed because the last
 	 * frame still may be processed by a worker */
-	if (ret > 0 && !skip)
+	if (ret == 0)
 		cancel_work_sync(&ar->wmi_mgmt_tx_work);
 }
 
